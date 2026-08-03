@@ -2,12 +2,16 @@ import '../models/auth_state.dart';
 import 'auth_repository.dart';
 
 class MockAuthRepository implements AuthRepository {
-  AuthState _state = const AuthState();
+  AuthState _state = const AuthState(
+    isLoggedIn: true,
+    isNewUser: false,
+    isPhoneVerified: true,
+  );
 
   @override
   Future<AuthState> getInitialAuthState() async {
     await Future<void>.delayed(
-      const Duration(milliseconds: 500),
+      const Duration(milliseconds: 1500),
     );
 
     return _state;

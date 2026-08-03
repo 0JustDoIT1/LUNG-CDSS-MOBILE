@@ -1,5 +1,5 @@
 import 'package:go_router/go_router.dart';
-
+import 'package:flutter/material.dart';
 import '../../core/widgets/main_shell.dart';
 import '../../core/widgets/placeholder_screen.dart';
 import 'route_names.dart';
@@ -10,6 +10,23 @@ import '../../features/auth/presentation/screens/phone_verification_screen.dart'
 import '../../features/auth/presentation/screens/otp_verification_screen.dart';
 import '../../features/auth/presentation/screens/pin_lock_screen.dart';
 import '../../features/auth/presentation/screens/biometric_auth_screen.dart';
+import '../../features/results/presentation/screens/test_result_list_screen.dart';
+import '../../features/results/presentation/screens/test_result_detail_screen.dart';
+import '../../features/symptom/presentation/screens/symptom_medication_screen.dart';
+import '../../features/symptom/presentation/screens/symptom_record_form_screen.dart';
+import '../../features/symptom/presentation/screens/symptom_record_list_screen.dart';
+import '../../features/appointment/presentation/screens/appointment_list_screen.dart';
+import '../../features/appointment/presentation/screens/appointment_detail_screen.dart';
+import '../../features/chatbot/presentation/screens/chat_screen.dart';
+import '../../features/intake/presentation/screens/intake_intro_screen.dart';
+import '../../features/intake/presentation/screens/intake_form_screen.dart';
+import '../../features/intake/presentation/screens/intake_question_list_screen.dart';
+import '../../features/intake/presentation/screens/intake_completed_screen.dart';
+import '../../features/convenience/presentation/screens/patient_qr_screen.dart';
+import '../../features/convenience/presentation/screens/notification_list_screen.dart';
+import '../../features/convenience/presentation/screens/settings_screen.dart';
+
+
 
 final GoRouter appRouter = GoRouter(
   initialLocation: RouteNames.splash,
@@ -69,19 +86,27 @@ final GoRouter appRouter = GoRouter(
         );
       },
       routes: [
-        GoRoute(
-          path: RouteNames.symptoms,
-          builder: (context, state) {
-            return const PlaceholderScreen(
-              title: '증상·복약',
-            );
-          },
-        ),
+       GoRoute(
+        path: RouteNames.symptoms,
+        builder: (context, state) {
+          return const SymptomMedicationScreen();
+        },
+      ),
         GoRoute(
           path: RouteNames.appointments,
           builder: (context, state) {
-            return const PlaceholderScreen(
-              title: '예약',
+            return const AppointmentListScreen();
+          },
+        ),
+
+        GoRoute(
+          path: RouteNames.appointmentDetail,
+          builder: (context, state) {
+            final appointmentId =
+                state.pathParameters['appointmentId'] ?? '';
+
+            return AppointmentDetailScreen(
+              appointmentId: appointmentId,
             );
           },
         ),
@@ -94,20 +119,62 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: RouteNames.results,
           builder: (context, state) {
-            return const PlaceholderScreen(
-              title: '검사',
+            return const TestResultListScreen();
+          },
+        ),
+
+        GoRoute(
+          path: RouteNames.resultDetail,
+          builder: (context, state) {
+            final resultId = state.pathParameters['resultId'] ?? '';
+
+            return TestResultDetailScreen(
+              resultId: resultId,
             );
           },
         ),
         GoRoute(
           path: RouteNames.more,
           builder: (context, state) {
-            return const PlaceholderScreen(
-              title: '더보기',
+            return Scaffold(
+              appBar: AppBar(
+                title: const Text('더보기'),
+              ),
+              body: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  ListTile(
+                    leading: const Icon(
+                      Icons.settings_outlined,
+                    ),
+                    title: const Text('설정'),
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                    ),
+                    onTap: () {
+                      context.push(RouteNames.settings);
+                    },
+                  ),
+                ],
+              ),
             );
           },
         ),
       ],
+    ),
+
+    GoRoute(
+      path: RouteNames.symptomRecordForm,
+      builder: (context, state) {
+        return const SymptomRecordFormScreen();
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.symptomRecordList,
+      builder: (context, state) {
+        return const SymptomRecordListScreen();
+      },
     ),
 
     GoRoute(
@@ -122,35 +189,70 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: RouteNames.chatbot,
       builder: (context, state) {
-        return const PlaceholderScreen(
-          title: 'AI 챗봇',
-        );
+        return const ChatScreen();
       },
     ),
 
     GoRoute(
       path: RouteNames.notifications,
       builder: (context, state) {
-        return const PlaceholderScreen(
-          title: '알림',
-        );
+        return const NotificationListScreen();
       },
     ),
 
     GoRoute(
       path: RouteNames.patientQr,
       builder: (context, state) {
-        return const PlaceholderScreen(
-          title: '진료카드 QR',
-        );
+        return const PatientQrScreen();
       },
     ),
 
     GoRoute(
       path: RouteNames.intakeForm,
       builder: (context, state) {
-        return const PlaceholderScreen(
-          title: '문진표',
+        return IntakeIntroScreen(
+          onStart: () {
+            context.push(RouteNames.intakeFormWrite);
+          },
+          onCompleted: () {
+            context.push(RouteNames.intakeAnswers);
+          },
+        );
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.intakeFormWrite,
+      builder: (context, state) {
+        return IntakeFormScreen(
+          onCompleted: () {
+            context.go(RouteNames.intakeCompleted);
+          },
+        );
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.intakeCompleted,
+      builder: (context, state) {
+        return IntakeCompletedScreen(
+          onViewAnswers: () {
+            context.push(RouteNames.intakeAnswers);
+          },
+          onGoHome: () {
+            context.go(RouteNames.home);
+          },
+        );
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.intakeAnswers,
+      builder: (context, state) {
+        return IntakeQuestionListScreen(
+          onEdit: () {
+            context.push(RouteNames.intakeFormWrite);
+          },
         );
       },
     ),
@@ -158,9 +260,7 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: RouteNames.settings,
       builder: (context, state) {
-        return const PlaceholderScreen(
-          title: '설정',
-        );
+        return const SettingsScreen();
       },
     ),
   ],

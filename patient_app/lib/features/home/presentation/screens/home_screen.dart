@@ -9,6 +9,7 @@ import '../widgets/home_header.dart';
 import '../widgets/today_health_summary.dart';
 import '../widgets/latest_test_card.dart';
 import '../widgets/medication_appointment_cards.dart';
+import '../widgets/home_quick_menu.dart';
 
 
 class HomeScreen extends ConsumerWidget {
@@ -79,6 +80,9 @@ class HomeScreen extends ConsumerWidget {
                     MedicationAppointmentCards(
                       summary: summary,
                     ),
+                    const SizedBox(height: 32),
+
+                    const HomeQuickMenu(),
                   ],
                 ),
               );
