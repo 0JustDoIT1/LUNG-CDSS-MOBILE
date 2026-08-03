@@ -49,6 +49,22 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
       return;
     }
 
+    final authState = await ref.read(authProvider.future);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!authState.isLoggedIn) {
+      context.go(RouteNames.login);
+      return;
+    }
+
+    if (authState.isNewUser || !authState.isPhoneVerified) {
+      context.go(RouteNames.phoneVerification);
+      return;
+    }
+
     context.go(RouteNames.home);
   }
 

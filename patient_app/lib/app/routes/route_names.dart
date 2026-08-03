@@ -26,5 +26,6 @@ abstract final class RouteNames {
   static const String intakeIntro = '/intake'; // 문진
   static const String intakeFormWrite = '/intake/write'; // 문진작성
   static const String intakeCompleted = '/intake/completed'; // 문진완료
-static const String intakeAnswers = '/intake/answers'; // 문진답변
+  static const String intakeAnswers = '/intake/answers'; // 문진답변
+  static const String profile = '/profile'; // 환자 프로필
 }

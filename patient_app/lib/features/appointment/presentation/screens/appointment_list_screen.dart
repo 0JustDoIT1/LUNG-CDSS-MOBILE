@@ -7,7 +7,9 @@ import '../../../../data/models/appointment.dart';
 import '../providers/appointment_provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/routes/route_names.dart';
-
+import '../../../../core/widgets/app_empty_view.dart';
+import '../../../../core/widgets/app_error_view.dart';
+import '../../../../core/widgets/app_loading_view.dart';
 
 
 class AppointmentListScreen extends ConsumerWidget {
@@ -23,17 +25,22 @@ class AppointmentListScreen extends ConsumerWidget {
       ),
       body: SafeArea(
         child: appointmentState.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(),
+          loading: () => const AppLoadingView(
+            message: '예약 정보를 불러오는 중입니다.',
           ),
-          error: (error, stackTrace) => _ErrorView(
+          error: (error, stackTrace) => AppErrorView(
+            message: '예약 정보를 다시 불러와주세요.',
             onRetry: () {
               ref.invalidate(appointmentsProvider);
             },
           ),
           data: (appointments) {
             if (appointments.isEmpty) {
-              return const _EmptyView();
+              return const AppEmptyView(
+                icon: Icons.calendar_month_outlined,
+                title: '등록된 예약이 없습니다.',
+                description: '새로운 예약이 등록되면 이곳에서 확인할 수 있습니다.',
+              );
             }
 
             final scheduledAppointments = appointments
@@ -324,53 +331,5 @@ class _EmptySectionCard extends StatelessWidget {
   }
 }
 
-class _EmptyView extends StatelessWidget {
-  const _EmptyView();
 
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        '등록된 예약이 없습니다.',
-        style: AppTextStyles.bodyMedium,
-      ),
-    );
-  }
-}
 
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({
-    required this.onRetry,
-  });
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 52,
-              color: AppColors.danger,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '예약 정보를 불러오지 못했습니다.',
-              style: AppTextStyles.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: onRetry,
-              child: const Text('다시 시도'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

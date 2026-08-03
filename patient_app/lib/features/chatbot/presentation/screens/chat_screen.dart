@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../../core/widgets/app_error_view.dart';
+import '../../../../core/widgets/app_loading_view.dart';
 import '../../../../data/mock/mock_chat_data.dart';
 import '../../../../data/models/chat_message.dart';
 import '../providers/chat_provider.dart';
-import 'package:flutter/services.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -165,10 +167,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           children: [
             Expanded(
               child: chatState.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(),
+                loading: () => const AppLoadingView(
+                  message: '대화를 불러오는 중입니다.',
                 ),
-                error: (error, stackTrace) => _ErrorView(
+                error: (error, stackTrace) => AppErrorView(
+                  message: '대화를 다시 불러와주세요.',
                   onRetry: () {
                     ref.invalidate(chatProvider);
                   },
@@ -444,39 +447,3 @@ class _MessageInput extends StatelessWidget {
   }
 }
 
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({
-    required this.onRetry,
-  });
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 52,
-              color: AppColors.danger,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '대화를 불러오지 못했습니다.',
-              style: AppTextStyles.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: onRetry,
-              child: const Text('다시 시도'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

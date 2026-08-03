@@ -3,9 +3,9 @@ import 'auth_repository.dart';
 
 class MockAuthRepository implements AuthRepository {
   AuthState _state = const AuthState(
-    isLoggedIn: true,
-    isNewUser: false,
-    isPhoneVerified: true,
+    isLoggedIn: false,
+    isNewUser: true,
+    isPhoneVerified: false,
   );
 
   @override

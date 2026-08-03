@@ -7,7 +7,9 @@ import '../../../../data/models/test_result.dart';
 import '../providers/test_result_provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/routes/route_names.dart';
-
+import '../../../../core/widgets/app_empty_view.dart';
+import '../../../../core/widgets/app_error_view.dart';
+import '../../../../core/widgets/app_loading_view.dart';
 
 
 class TestResultListScreen extends ConsumerWidget {
@@ -23,17 +25,24 @@ class TestResultListScreen extends ConsumerWidget {
       ),
       body: SafeArea(
         child: resultState.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(),
+
+          loading: () => const AppLoadingView(
+            message: '검사결과를 불러오는 중입니다.',
           ),
-          error: (error, stackTrace) => _ErrorView(
+          error: (error, stackTrace) => AppErrorView(
+            message: '검사결과를 다시 불러와주세요.',
             onRetry: () {
               ref.invalidate(testResultsProvider);
             },
           ),
+
           data: (results) {
             if (results.isEmpty) {
-              return const _EmptyView();
+              return const AppEmptyView(
+                icon: Icons.biotech_outlined,
+                title: '등록된 검사결과가 없습니다.',
+                description: '검사결과가 등록되면 이곳에서 확인할 수 있습니다.',
+              );
             }
 
             return RefreshIndicator(
@@ -179,67 +188,5 @@ class _TestResultCard extends StatelessWidget {
   }
 }
 
-class _EmptyView extends StatelessWidget {
-  const _EmptyView();
 
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.biotech_outlined,
-              size: 56,
-              color: AppColors.textSecondary,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '등록된 검사결과가 없습니다.',
-              style: AppTextStyles.bodyMedium,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({
-    required this.onRetry,
-  });
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 52,
-              color: AppColors.danger,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '검사결과를 불러오지 못했습니다.',
-              style: AppTextStyles.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: onRetry,
-              child: const Text('다시 시도'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

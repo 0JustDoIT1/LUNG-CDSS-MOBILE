@@ -95,7 +95,7 @@ class _MedicationCard extends StatelessWidget {
           ? '복약완료'
           : '복약 확인',
       onTap: () {
-        context.go(RouteNames.medication);
+        context.go(RouteNames.symptoms);
       },
     );
   }

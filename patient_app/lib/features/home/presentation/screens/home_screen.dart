@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_text_styles.dart';
+import '../../../../core/widgets/app_error_view.dart';
+import '../../../../core/widgets/app_loading_view.dart';
 import '../providers/home_summary_provider.dart';
 import '../providers/patient_provider.dart';
 import '../widgets/home_header.dart';
@@ -10,6 +10,7 @@ import '../widgets/today_health_summary.dart';
 import '../widgets/latest_test_card.dart';
 import '../widgets/medication_appointment_cards.dart';
 import '../widgets/home_quick_menu.dart';
+
 
 
 class HomeScreen extends ConsumerWidget {
@@ -22,10 +23,11 @@ class HomeScreen extends ConsumerWidget {
 
     return SafeArea(
       child: patientState.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(),
+        loading: () => const AppLoadingView(
+          message: '홈 정보를 불러오는 중입니다.',
         ),
-        error: (error, stackTrace) => _ErrorView(
+        error: (error, stackTrace) => AppErrorView(
+          message: '환자 정보를 다시 불러와주세요.',
           onRetry: () {
             ref.invalidate(patientProfileProvider);
             ref.invalidate(homeSummaryProvider);
@@ -33,10 +35,11 @@ class HomeScreen extends ConsumerWidget {
         ),
         data: (patient) {
           return summaryState.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(),
+            loading: () => const AppLoadingView(
+              message: '홈 정보를 불러오는 중입니다.',
             ),
-            error: (error, stackTrace) => _ErrorView(
+            error: (error, stackTrace) => AppErrorView(
+              message: '건강 요약 정보를 다시 불러와주세요.',
               onRetry: () {
                 ref.invalidate(homeSummaryProvider);
               },
@@ -94,39 +97,3 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({
-    required this.onRetry,
-  });
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 52,
-              color: AppColors.danger,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '홈 정보를 불러오지 못했습니다.',
-              style: AppTextStyles.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: onRetry,
-              child: const Text('다시 시도'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

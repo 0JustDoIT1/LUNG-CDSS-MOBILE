@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../core/widgets/app_empty_view.dart';
+
 
 class NotificationListScreen extends StatefulWidget {
   const NotificationListScreen({
@@ -84,7 +86,11 @@ class _NotificationListScreenState
         ],
       ),
       body: _notifications.isEmpty
-          ? const _EmptyNotificationView()
+          ? const AppEmptyView(
+              icon: Icons.notifications_none_rounded,
+              title: '새로운 알림이 없습니다.',
+              description: '새로운 검사 결과나 예약 알림이 도착하면 이곳에서 확인할 수 있습니다.',
+            )
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(
                 20,
@@ -281,38 +287,6 @@ class _NotificationCard extends StatelessWidget {
   }
 }
 
-class _EmptyNotificationView extends StatelessWidget {
-  const _EmptyNotificationView();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.notifications_none_rounded,
-              size: 56,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '새로운 알림이 없습니다.',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 enum _NotificationType {
   result,

@@ -25,7 +25,8 @@ import '../../features/intake/presentation/screens/intake_completed_screen.dart'
 import '../../features/convenience/presentation/screens/patient_qr_screen.dart';
 import '../../features/convenience/presentation/screens/notification_list_screen.dart';
 import '../../features/convenience/presentation/screens/settings_screen.dart';
-
+import '../../features/convenience/presentation/screens/more_screen.dart';
+import '../../features/convenience/presentation/screens/profile_screen.dart';
 
 
 final GoRouter appRouter = GoRouter(
@@ -136,28 +137,7 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: RouteNames.more,
           builder: (context, state) {
-            return Scaffold(
-              appBar: AppBar(
-                title: const Text('더보기'),
-              ),
-              body: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  ListTile(
-                    leading: const Icon(
-                      Icons.settings_outlined,
-                    ),
-                    title: const Text('설정'),
-                    trailing: const Icon(
-                      Icons.chevron_right_rounded,
-                    ),
-                    onTap: () {
-                      context.push(RouteNames.settings);
-                    },
-                  ),
-                ],
-              ),
-            );
+            return const MoreScreen();
           },
         ),
       ],
@@ -254,6 +234,13 @@ final GoRouter appRouter = GoRouter(
             context.push(RouteNames.intakeFormWrite);
           },
         );
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.profile,
+      builder: (context, state) {
+        return const ProfileScreen();
       },
     ),
 

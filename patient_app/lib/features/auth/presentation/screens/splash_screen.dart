@@ -5,9 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
-import '../providers/auth_provider.dart';
-import '../../../convenience/presentation/providers/security_settings_provider.dart';
-
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -27,34 +24,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _checkAuthState() async {
-    final authState = await ref.read(authProvider.future);
-
-    if (!mounted) {
-      return;
-    }
-
-    if (!authState.isLoggedIn) {
-      context.go(RouteNames.login);
-      return;
-    }
-
-    if (authState.isNewUser || !authState.isPhoneVerified) {
-      context.go(RouteNames.phoneVerification);
-      return;
-    }
-
-    final securitySettings = ref.read(
-      securitySettingsProvider,
+    await Future<void>.delayed(
+      const Duration(milliseconds: 1500),
     );
 
-    if (!securitySettings.appLockEnabled) {
-      context.go(RouteNames.home);
-      return;
-    }
-
-    if (securitySettings.biometricEnabled &&
-        !authState.isBiometricAuthenticated) {
-      context.go(RouteNames.biometricAuth);
+    if (!mounted) {
       return;
     }
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/widgets/app_error_view.dart';
+import '../../../../core/widgets/app_loading_view.dart';
 import '../../../../data/models/intake_form.dart';
 import '../providers/intake_form_provider.dart';
 
@@ -22,13 +24,16 @@ class IntakeQuestionListScreen extends ConsumerWidget {
       ),
       body: intakeState.when(
         loading: () {
-          return const Center(
-            child: CircularProgressIndicator(),
+          return const AppLoadingView(
+            message: '문진 내용을 불러오는 중입니다.',
           );
         },
         error: (error, stackTrace) {
-          return const Center(
-            child: Text('문진 내용을 불러오지 못했습니다.'),
+          return AppErrorView(
+            message: '문진 내용을 다시 불러와주세요.',
+            onRetry: () {
+              ref.invalidate(intakeFormProvider);
+            },
           );
         },
         data: (form) {

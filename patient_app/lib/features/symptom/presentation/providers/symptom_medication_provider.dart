@@ -72,8 +72,6 @@ class MedicationSchedulesNotifier
 
     final previousState = state;
 
-    state = const AsyncLoading();
-
     state = await AsyncValue.guard(() async {
       await repository.updateMedicationTakenStatus(
         medicationId: medicationId,
