@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1075529599362",
+    "project_id": "lung-cdss",
+    "storage_bucket": "lung-cdss.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1075529599362:android:87d974b0b880c531ebe79b",
+        "android_client_info": {
+          "package_name": "com.lungcdss.medical"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAwYjsoBLybdDzTIoqkzOZbzKVa_2ASGE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1075529599362:android:ea53aad9a289dbffebe79b",
+        "android_client_info": {
+          "package_name": "com.lungcdss.patient"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAwYjsoBLybdDzTIoqkzOZbzKVa_2ASGE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
