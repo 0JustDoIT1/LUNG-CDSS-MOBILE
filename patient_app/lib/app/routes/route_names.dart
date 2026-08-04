@@ -32,4 +32,7 @@ abstract final class RouteNames {
   static const String guardianLogin = '/guardian-login';
   static const String guardianHome = '/guardian-home';
   static const String guardianLink = '/guardian-link';
+  static const String guardianResults = '/guardian-results';
+  static const String guardianAppointments = '/guardian-appointments';
+  static const String guardianSymptoms = '/guardian-symptoms';
 }

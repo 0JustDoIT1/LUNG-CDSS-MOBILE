@@ -31,6 +31,9 @@ import '../../features/appointment/presentation/screens/appointment_create_scree
 import '../../features/auth/presentation/screens/guardian_login_screen.dart';
 import '../../features/auth/presentation/screens/guardian_home_screen.dart';
 import '../../features/settings/presentation/screens/guardian_link_screen.dart';
+import '../../features/auth/presentation/screens/guardian_results_screen.dart';
+import '../../features/auth/presentation/screens/guardian_appointments_screen.dart';
+import '../../features/auth/presentation/screens/guardian_symptoms_screen.dart';
 
 
 
@@ -63,6 +66,27 @@ final GoRouter appRouter = GoRouter(
       path: RouteNames.guardianHome,
       builder: (context, state) {
         return const GuardianHomeScreen();
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.guardianResults,
+      builder: (context, state) {
+        return const GuardianResultsScreen();
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.guardianAppointments,
+      builder: (context, state) {
+        return const GuardianAppointmentsScreen();
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.guardianSymptoms,
+      builder: (context, state) {
+        return const GuardianSymptomsScreen();
       },
     ),
 

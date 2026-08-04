@@ -5,19 +5,21 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/routes/route_names.dart';
+import '../../../../features/settings/presentation/providers/guardian_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 
 
-class GuardianLoginScreen extends StatefulWidget {
+class GuardianLoginScreen extends ConsumerStatefulWidget {
   const GuardianLoginScreen({super.key});
 
   @override
-  State<GuardianLoginScreen> createState() =>
-      _GuardianLoginScreenState();
+  ConsumerState<GuardianLoginScreen> createState() =>
+    _GuardianLoginScreenState();
 }
 
 class _GuardianLoginScreenState
-    extends State<GuardianLoginScreen> {
+    extends ConsumerState<GuardianLoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
   final _nameController = TextEditingController();
@@ -40,14 +42,40 @@ class _GuardianLoginScreenState
       _isLoading = true;
     });
 
-    // 추후 보호자 코드 검증 API와 연결할 부분입니다.
     await Future<void>.delayed(
-      const Duration(milliseconds: 800),
+      const Duration(milliseconds: 500),
     );
 
     if (!mounted) {
       return;
     }
+
+    final code = _codeController.text.trim().toUpperCase();
+    final name = _nameController.text.trim();
+
+    final isValid = ref
+        .read(guardianProvider.notifier)
+        .validateInviteCode(code);
+
+    if (!isValid) {
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '유효하지 않거나 만료된 보호자 코드입니다.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    ref.read(guardianProvider.notifier).registerGuardian(
+          name: name,
+          patientName: '연동 환자',
+        );
 
     setState(() {
       _isLoading = false;

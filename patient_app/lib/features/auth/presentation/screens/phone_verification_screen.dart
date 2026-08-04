@@ -10,6 +10,7 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../providers/auth_provider.dart';
 
+
 class PhoneVerificationScreen extends ConsumerStatefulWidget {
   const PhoneVerificationScreen({super.key});
 
@@ -120,7 +121,19 @@ class _PhoneVerificationScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+          ),
+          onPressed: () {
+            context.go(RouteNames.login);
+          }
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

@@ -66,17 +66,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(
-                    Icons.air_rounded,
-                    size: 72,
-                    color: AppColors.primary,
+                  Image.asset(
+                    'assets/images/soomit_logo2.png',
+                    width: 170,
+                    height: 170,
+                    fit: BoxFit.contain,
                   ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    '숨잇',
-                    style: AppTextStyles.displayLarge,
-                    textAlign: TextAlign.center,
-                  ),
+                  const SizedBox(height: 8),
                   const SizedBox(height: 10),
                   Text(
                     '환자의 숨을 잇는 건강관리',
