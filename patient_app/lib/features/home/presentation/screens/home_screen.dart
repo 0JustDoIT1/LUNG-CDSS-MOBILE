@@ -10,6 +10,8 @@ import '../widgets/today_health_summary.dart';
 import '../widgets/latest_test_card.dart';
 import '../widgets/medication_appointment_cards.dart';
 import '../widgets/home_quick_menu.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../app/routes/route_names.dart';
 
 
 
@@ -72,6 +74,12 @@ class HomeScreen extends ConsumerWidget {
 
                     TodayHealthSummary(
                       summary: summary,
+                      onMedicationTap: () {
+                        context.go(RouteNames.symptoms);
+                      },
+                      onSymptomTap: () {
+                        context.push(RouteNames.symptomRecordForm);
+                      },
                     ),
                     const SizedBox(height: 32),
 

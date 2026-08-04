@@ -119,6 +119,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 28),
 
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Divider(),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
+                        child: Text(
+                          '보호자이신가요?',
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const Expanded(
+                        child: Divider(),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      context.push(RouteNames.guardianLogin);
+                    },
+                    icon: const Icon(
+                      Icons.family_restroom_outlined,
+                    ),
+                    label: const Text('보호자로 로그인'),
+                  ),
+
+                  const SizedBox(height: 28),
+
                   Text(
                     '계속 진행하면 서비스 이용약관 및 개인정보처리방침에 동의한 것으로 간주합니다.',
                     style: AppTextStyles.bodySmall,

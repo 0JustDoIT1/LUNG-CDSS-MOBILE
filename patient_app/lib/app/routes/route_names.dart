@@ -28,4 +28,8 @@ abstract final class RouteNames {
   static const String intakeCompleted = '/intake/completed'; // 문진완료
   static const String intakeAnswers = '/intake/answers'; // 문진답변
   static const String profile = '/profile'; // 환자 프로필
+  static const String appointmentCreate = '/appointments/create';
+  static const String guardianLogin = '/guardian-login';
+  static const String guardianHome = '/guardian-home';
+  static const String guardianLink = '/guardian-link';
 }

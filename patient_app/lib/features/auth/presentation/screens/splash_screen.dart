@@ -109,7 +109,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ],
                     ),
                     child: Image.asset(
-                      'assets/images/soomit_logo.png',
+                      'assets/images/soomit_logo2.png',
                       fit: BoxFit.contain,
                     ),
                   ),

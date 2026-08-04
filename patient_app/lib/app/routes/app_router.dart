@@ -27,6 +27,11 @@ import '../../features/convenience/presentation/screens/notification_list_screen
 import '../../features/convenience/presentation/screens/settings_screen.dart';
 import '../../features/convenience/presentation/screens/more_screen.dart';
 import '../../features/convenience/presentation/screens/profile_screen.dart';
+import '../../features/appointment/presentation/screens/appointment_create_screen.dart';
+import '../../features/auth/presentation/screens/guardian_login_screen.dart';
+import '../../features/auth/presentation/screens/guardian_home_screen.dart';
+import '../../features/settings/presentation/screens/guardian_link_screen.dart';
+
 
 
 final GoRouter appRouter = GoRouter(
@@ -43,6 +48,28 @@ final GoRouter appRouter = GoRouter(
       path: RouteNames.login,
       builder: (context, state) {
         return const LoginScreen();
+      },
+    ),
+
+
+    GoRoute(
+      path: RouteNames.guardianLogin,
+      builder: (context, state) {
+        return const GuardianLoginScreen();
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.guardianHome,
+      builder: (context, state) {
+        return const GuardianHomeScreen();
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.guardianLink,
+      builder: (context, state) {
+        return const GuardianLinkScreen();
       },
     ),
 
@@ -97,6 +124,13 @@ final GoRouter appRouter = GoRouter(
           path: RouteNames.appointments,
           builder: (context, state) {
             return const AppointmentListScreen();
+          },
+        ),
+
+        GoRoute(
+          path: RouteNames.appointmentCreate,
+          builder: (context, state) {
+            return const AppointmentCreateScreen();
           },
         ),
 
@@ -236,6 +270,7 @@ final GoRouter appRouter = GoRouter(
         );
       },
     ),
+    
 
     GoRoute(
       path: RouteNames.profile,
