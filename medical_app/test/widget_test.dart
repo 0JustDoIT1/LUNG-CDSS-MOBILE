@@ -1,30 +1,18 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// 기본 스모크 테스트: 앱이 죽지 않고 로그인 화면이 뜨는지만 확인.
+// 화면이 늘어나면 각 기능별 테스트 파일을 features/ 구조에 맞춰 추가할 것.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:medical_app/main.dart';
+import 'package:medical_app/app.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('앱 실행 시 로그인 화면이 보인다', (WidgetTester tester) async {
+    await tester.pumpWidget(const MedicalApp());
+    await tester.pumpAndSettle();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('로그인'), findsWidgets);
+    expect(find.text('의사로 로그인'), findsOneWidget);
+    expect(find.text('간호사로 로그인'), findsOneWidget);
   });
 }
