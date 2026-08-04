@@ -18,14 +18,12 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _loadingProvider;
 
- Future<void> _signIn(String provider) async {
+  Future<void> _signIn(String provider) async {
     setState(() {
       _loadingProvider = provider;
     });
 
-    await ref.read(authProvider.notifier).signInWithSocial(
-          provider: provider,
-        );
+    await ref.read(authProvider.notifier).signInWithSocial(provider: provider);
 
     if (!mounted) {
       return;
@@ -41,8 +39,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            authAsync.error?.toString() ??
-                '로그인에 실패했습니다. 다시 시도해주세요.',
+            authAsync.error?.toString() ?? '로그인에 실패했습니다. 다시 시도해주세요.',
           ),
         ),
       );
@@ -71,14 +68,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 32,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 420,
-              ),
+              constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -133,13 +125,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   Row(
                     children: [
-                      const Expanded(
-                        child: Divider(),
-                      ),
+                      const Expanded(child: Divider()),
                       Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Text(
                           '보호자이신가요?',
                           style: AppTextStyles.bodySmall.copyWith(
@@ -147,9 +135,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                         ),
                       ),
-                      const Expanded(
-                        child: Divider(),
-                      ),
+                      const Expanded(child: Divider()),
                     ],
                   ),
 
@@ -159,9 +145,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     onPressed: () {
                       context.push(RouteNames.guardianLogin);
                     },
-                    icon: const Icon(
-                      Icons.family_restroom_outlined,
-                    ),
+                    icon: const Icon(Icons.family_restroom_outlined),
                     label: const Text('보호자로 로그인'),
                   ),
 
@@ -174,10 +158,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
 
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text('자세히 보기'),
-                  ),
+                  TextButton(onPressed: () {}, child: const Text('자세히 보기')),
                 ],
               ),
             ),
