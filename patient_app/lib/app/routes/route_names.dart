@@ -2,7 +2,6 @@ abstract final class RouteNames {
   static const String splash = '/';
   static const String login = '/login';
   static const String phoneVerification = '/phone-verification';
-  static const String otpVerification = '/otp-verification';
   static const String home = '/home';
 
   static const String symptoms = '/symptoms';

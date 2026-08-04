@@ -7,7 +7,6 @@ import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/phone_verification_screen.dart';
-import '../../features/auth/presentation/screens/otp_verification_screen.dart';
 import '../../features/auth/presentation/screens/pin_lock_screen.dart';
 import '../../features/auth/presentation/screens/biometric_auth_screen.dart';
 import '../../features/results/presentation/screens/test_result_list_screen.dart';
@@ -101,17 +100,6 @@ final GoRouter appRouter = GoRouter(
       path: RouteNames.phoneVerification,
       builder: (context, state) {
         return const PhoneVerificationScreen();
-      },
-    ),
-
-    GoRoute(
-      path: RouteNames.otpVerification,
-      builder: (context, state) {
-        final phoneNumber = state.extra as String? ?? '';
-
-        return OtpVerificationScreen(
-          phoneNumber: phoneNumber,
-        );
       },
     ),
 

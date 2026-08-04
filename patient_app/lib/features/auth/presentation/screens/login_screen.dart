@@ -18,7 +18,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _loadingProvider;
 
-  Future<void> _signIn(String provider) async {
+ Future<void> _signIn(String provider) async {
     setState(() {
       _loadingProvider = provider;
     });
@@ -35,18 +35,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _loadingProvider = null;
     });
 
-    final authState = ref.read(authProvider);
+    final authAsync = ref.read(authProvider);
 
-    if (authState.hasError) {
+    if (authAsync.hasError) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('로그인에 실패했습니다. 다시 시도해주세요.'),
+        SnackBar(
+          content: Text(
+            authAsync.error?.toString() ??
+                '로그인에 실패했습니다. 다시 시도해주세요.',
+          ),
         ),
       );
       return;
     }
 
-    context.go(RouteNames.phoneVerification);
+    final authState = authAsync.value;
+
+    if (authState == null) {
+      return;
+    }
+
+    if (authState.isLoggedIn && !authState.isNewUser) {
+      context.go(RouteNames.home);
+      return;
+    }
+
+    if (authState.isNewUser) {
+      context.go(RouteNames.phoneVerification);
+    }
   }
 
   @override
