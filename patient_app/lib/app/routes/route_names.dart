@@ -2,7 +2,6 @@ abstract final class RouteNames {
   static const String splash = '/';
   static const String login = '/login';
   static const String phoneVerification = '/phone-verification';
-  static const String otpVerification = '/otp-verification';
   static const String home = '/home';
 
   static const String symptoms = '/symptoms';
@@ -28,4 +27,11 @@ abstract final class RouteNames {
   static const String intakeCompleted = '/intake/completed'; // 문진완료
   static const String intakeAnswers = '/intake/answers'; // 문진답변
   static const String profile = '/profile'; // 환자 프로필
+  static const String appointmentCreate = '/appointments/create';
+  static const String guardianLogin = '/guardian-login';
+  static const String guardianHome = '/guardian-home';
+  static const String guardianLink = '/guardian-link';
+  static const String guardianResults = '/guardian-results';
+  static const String guardianAppointments = '/guardian-appointments';
+  static const String guardianSymptoms = '/guardian-symptoms';
 }

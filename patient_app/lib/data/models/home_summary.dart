@@ -38,4 +38,37 @@ class HomeSummary {
   bool get hasUpcomingAppointment {
     return nextAppointmentDateTime.isAfter(DateTime.now());
   }
+
+  HomeSummary copyWith({
+  String? latestTestTitle,
+  DateTime? latestTestDate,
+  String? latestTestStatus,
+  int? todayMedicationCount,
+  int? completedMedicationCount,
+  bool? hasSymptomRecordToday,
+  String? nextAppointmentDepartment,
+  String? nextAppointmentDoctor,
+  DateTime? nextAppointmentDateTime,
+  int? unreadNotificationCount,
+}) {
+  return HomeSummary(
+    latestTestTitle: latestTestTitle ?? this.latestTestTitle,
+    latestTestDate: latestTestDate ?? this.latestTestDate,
+    latestTestStatus: latestTestStatus ?? this.latestTestStatus,
+    todayMedicationCount:
+        todayMedicationCount ?? this.todayMedicationCount,
+    completedMedicationCount:
+        completedMedicationCount ?? this.completedMedicationCount,
+    hasSymptomRecordToday:
+        hasSymptomRecordToday ?? this.hasSymptomRecordToday,
+    nextAppointmentDepartment:
+        nextAppointmentDepartment ?? this.nextAppointmentDepartment,
+    nextAppointmentDoctor:
+        nextAppointmentDoctor ?? this.nextAppointmentDoctor,
+    nextAppointmentDateTime:
+        nextAppointmentDateTime ?? this.nextAppointmentDateTime,
+    unreadNotificationCount:
+        unreadNotificationCount ?? this.unreadNotificationCount,
+  );
+}
 }

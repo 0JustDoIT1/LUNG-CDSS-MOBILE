@@ -7,6 +7,8 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../data/models/symptom_record.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../providers/symptom_medication_provider.dart';
+import '../../../home/presentation/providers/home_summary_provider.dart';
+import '../../../home/presentation/providers/home_summary_provider.dart';
 
 class SymptomRecordFormScreen extends ConsumerStatefulWidget {
   const SymptomRecordFormScreen({super.key});
@@ -121,6 +123,7 @@ class _SymptomRecordFormScreenState
       return;
     }
 
+    ref.invalidate(homeSummaryProvider);
     context.pop();
   }
 

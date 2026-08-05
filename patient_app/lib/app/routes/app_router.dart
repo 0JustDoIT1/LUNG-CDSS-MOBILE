@@ -7,7 +7,6 @@ import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/phone_verification_screen.dart';
-import '../../features/auth/presentation/screens/otp_verification_screen.dart';
 import '../../features/auth/presentation/screens/pin_lock_screen.dart';
 import '../../features/auth/presentation/screens/biometric_auth_screen.dart';
 import '../../features/results/presentation/screens/test_result_list_screen.dart';
@@ -27,6 +26,14 @@ import '../../features/convenience/presentation/screens/notification_list_screen
 import '../../features/convenience/presentation/screens/settings_screen.dart';
 import '../../features/convenience/presentation/screens/more_screen.dart';
 import '../../features/convenience/presentation/screens/profile_screen.dart';
+import '../../features/appointment/presentation/screens/appointment_create_screen.dart';
+import '../../features/auth/presentation/screens/guardian_login_screen.dart';
+import '../../features/auth/presentation/screens/guardian_home_screen.dart';
+import '../../features/settings/presentation/screens/guardian_link_screen.dart';
+import '../../features/auth/presentation/screens/guardian_results_screen.dart';
+import '../../features/auth/presentation/screens/guardian_appointments_screen.dart';
+import '../../features/auth/presentation/screens/guardian_symptoms_screen.dart';
+
 
 
 final GoRouter appRouter = GoRouter(
@@ -46,21 +53,53 @@ final GoRouter appRouter = GoRouter(
       },
     ),
 
+
     GoRoute(
-      path: RouteNames.phoneVerification,
+      path: RouteNames.guardianLogin,
       builder: (context, state) {
-        return const PhoneVerificationScreen();
+        return const GuardianLoginScreen();
       },
     ),
 
     GoRoute(
-      path: RouteNames.otpVerification,
+      path: RouteNames.guardianHome,
       builder: (context, state) {
-        final phoneNumber = state.extra as String? ?? '';
+        return const GuardianHomeScreen();
+      },
+    ),
 
-        return OtpVerificationScreen(
-          phoneNumber: phoneNumber,
-        );
+    GoRoute(
+      path: RouteNames.guardianResults,
+      builder: (context, state) {
+        return const GuardianResultsScreen();
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.guardianAppointments,
+      builder: (context, state) {
+        return const GuardianAppointmentsScreen();
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.guardianSymptoms,
+      builder: (context, state) {
+        return const GuardianSymptomsScreen();
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.guardianLink,
+      builder: (context, state) {
+        return const GuardianLinkScreen();
+      },
+    ),
+
+    GoRoute(
+      path: RouteNames.phoneVerification,
+      builder: (context, state) {
+        return const PhoneVerificationScreen();
       },
     ),
 
@@ -97,6 +136,13 @@ final GoRouter appRouter = GoRouter(
           path: RouteNames.appointments,
           builder: (context, state) {
             return const AppointmentListScreen();
+          },
+        ),
+
+        GoRoute(
+          path: RouteNames.appointmentCreate,
+          builder: (context, state) {
+            return const AppointmentCreateScreen();
           },
         ),
 
@@ -236,6 +282,7 @@ final GoRouter appRouter = GoRouter(
         );
       },
     ),
+    
 
     GoRoute(
       path: RouteNames.profile,

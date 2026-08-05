@@ -7,10 +7,14 @@ import '../../../../data/models/home_summary.dart';
 class TodayHealthSummary extends StatelessWidget {
   const TodayHealthSummary({
     required this.summary,
+    required this.onMedicationTap,
+    required this.onSymptomTap,
     super.key,
   });
 
   final HomeSummary summary;
+  final VoidCallback onMedicationTap;
+  final VoidCallback onSymptomTap;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +47,7 @@ class TodayHealthSummary extends StatelessWidget {
                     '${summary.completedMedicationCount}'
                     '/${summary.todayMedicationCount}회 완료',
                 trailing: '$medicationPercent%',
+                onTap: onMedicationTap,
               ),
               const SizedBox(height: 14),
               ClipRRect(
@@ -76,6 +81,7 @@ class TodayHealthSummary extends StatelessWidget {
                 trailingColor: summary.hasSymptomRecordToday
                     ? AppColors.primary
                     : AppColors.textSecondary,
+                onTap: onSymptomTap,
               ),
             ],
           ),
@@ -92,6 +98,7 @@ class _HealthItem extends StatelessWidget {
     required this.description,
     required this.trailing,
     this.trailingColor,
+    this.onTap,
   });
 
   final IconData icon;
@@ -99,53 +106,61 @@ class _HealthItem extends StatelessWidget {
   final String description;
   final String trailing;
   final Color? trailingColor;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(
-            icon,
-            color: AppColors.primary,
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
               ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+              child: Icon(
+                icon,
+                color: AppColors.primary,
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              trailing,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: trailingColor ?? AppColors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        Text(
-          trailing,
-          style: AppTextStyles.bodySmall.copyWith(
-            color: trailingColor ?? AppColors.primary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

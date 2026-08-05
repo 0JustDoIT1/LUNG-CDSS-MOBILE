@@ -21,6 +21,22 @@ class AppointmentDetailScreen extends ConsumerStatefulWidget {
 
 class _AppointmentDetailScreenState
     extends ConsumerState<AppointmentDetailScreen> {
+  final List<String> _availableTimes = [
+    '09:00',
+    '09:30',
+    '10:00',
+    '10:30',
+    '11:00',
+    '11:30',
+    '13:00',
+    '13:30',
+    '14:00',
+    '14:30',
+    '15:00',
+    '15:30',
+    '16:00',
+    '16:30',
+  ];
 
   String _formatDate(DateTime dateTime) {
     final String month =
@@ -45,39 +61,131 @@ class _AppointmentDetailScreenState
         return AppColors.danger;
     }
   }
+
+  Future<String?> _selectAppointmentTime(
+    String initialTime,
+  ) async {
+    String selectedTime = _availableTimes.contains(initialTime)
+        ? initialTime
+        : _availableTimes.first;
+
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('예약 시간 선택'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: _availableTimes.map((time) {
+                    return ChoiceChip(
+                      label: Text(time),
+                      selected: selectedTime == time,
+                      onSelected: (selected) {
+                        if (!selected) {
+                          return;
+                        }
+
+                        setDialogState(() {
+                          selectedTime = time;
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('취소'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(
+                      selectedTime,
+                    );
+                  },
+                  child: const Text('선택'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _changeAppointmentDate(
     Appointment appointment,
   ) async {
+    final now = DateTime.now();
+    final today = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    );
+
+    final appointmentDate = DateTime(
+      appointment.appointmentAt.year,
+      appointment.appointmentAt.month,
+      appointment.appointmentAt.day,
+    );
+
+    final initialDate = appointmentDate.isBefore(today)
+        ? today
+        : appointmentDate;
+
     final selectedDate = await showDatePicker(
       context: context,
-      initialDate: appointment.appointmentAt,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(
-        const Duration(days: 365),
+      locale: const Locale('ko', 'KR'),
+      initialDate: initialDate,
+      firstDate: today,
+      lastDate: DateTime(
+        today.year + 1,
+        today.month,
+        today.day,
       ),
+      helpText: '예약 날짜 선택',
+      cancelText: '취소',
+      confirmText: '선택',
     );
 
     if (selectedDate == null || !mounted) {
       return;
     }
 
-    final selectedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(
-        appointment.appointmentAt,
-      ),
+    final initialHour = appointment.appointmentAt.hour
+        .toString()
+        .padLeft(2, '0');
+
+    final initialMinute = appointment.appointmentAt.minute
+        .toString()
+        .padLeft(2, '0');
+
+    final selectedTime = await _selectAppointmentTime(
+      '$initialHour:$initialMinute',
     );
 
     if (selectedTime == null || !mounted) {
       return;
     }
 
+    final timeParts = selectedTime.split(':');
+    final hour = int.parse(timeParts[0]);
+    final minute = int.parse(timeParts[1]);
+
     final newAppointmentAt = DateTime(
       selectedDate.year,
       selectedDate.month,
       selectedDate.day,
-      selectedTime.hour,
-      selectedTime.minute,
+      hour,
+      minute,
     );
 
     final success = await ref
@@ -104,6 +212,10 @@ class _AppointmentDetailScreenState
       appointmentDetailProvider(widget.appointmentId),
     );
 
+    ref.invalidate(
+      appointmentsProvider,
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('예약 일시가 변경되었습니다.'),
@@ -116,7 +228,7 @@ class _AppointmentDetailScreenState
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('예약을 취소하시겠습니까?'),
           content: const Text(
@@ -125,13 +237,13 @@ class _AppointmentDetailScreenState
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(false);
+                Navigator.of(dialogContext).pop(false);
               },
               child: const Text('닫기'),
             ),
             FilledButton(
               onPressed: () {
-                Navigator.of(context).pop(true);
+                Navigator.of(dialogContext).pop(true);
               },
               child: const Text('예약 취소'),
             ),
@@ -167,6 +279,10 @@ class _AppointmentDetailScreenState
       appointmentDetailProvider(widget.appointmentId),
     );
 
+    ref.invalidate(
+      appointmentsProvider,
+    );
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('예약이 취소되었습니다.'),
@@ -192,7 +308,9 @@ class _AppointmentDetailScreenState
           error: (error, stackTrace) => _ErrorView(
             onRetry: () {
               ref.invalidate(
-                appointmentDetailProvider(widget.appointmentId),
+                appointmentDetailProvider(
+                  widget.appointmentId,
+                ),
               );
             },
           ),
@@ -223,7 +341,8 @@ class _AppointmentDetailScreenState
                     ),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
@@ -234,7 +353,8 @@ class _AppointmentDetailScreenState
                               color: statusColor.withValues(
                                 alpha: 0.1,
                               ),
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius:
+                                  BorderRadius.circular(16),
                             ),
                             child: Icon(
                               Icons.calendar_month_outlined,
@@ -250,14 +370,15 @@ class _AppointmentDetailScreenState
                               children: [
                                 Text(
                                   appointment.department,
-                                  style:
-                                      AppTextStyles.headlineMedium,
+                                  style: AppTextStyles
+                                      .headlineMedium,
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
                                   '${appointment.doctorName} 의료진',
-                                  style:
-                                      AppTextStyles.bodyMedium.copyWith(
+                                  style: AppTextStyles
+                                      .bodyMedium
+                                      .copyWith(
                                     color:
                                         AppColors.textSecondary,
                                   ),
@@ -266,7 +387,8 @@ class _AppointmentDetailScreenState
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(
+                            padding:
+                                const EdgeInsets.symmetric(
                               horizontal: 10,
                               vertical: 5,
                             ),
@@ -329,7 +451,8 @@ class _AppointmentDetailScreenState
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
                         const Icon(
                           Icons.info_outline_rounded,
@@ -339,7 +462,8 @@ class _AppointmentDetailScreenState
                         Expanded(
                           child: Text(
                             appointment.memo!,
-                            style: AppTextStyles.bodyMedium.copyWith(
+                            style:
+                                AppTextStyles.bodyMedium.copyWith(
                               color: AppColors.textSecondary,
                               height: 1.5,
                             ),
@@ -357,7 +481,9 @@ class _AppointmentDetailScreenState
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () {
-                            _changeAppointmentDate(appointment);
+                            _changeAppointmentDate(
+                              appointment,
+                            );
                           },
                           child: const Text('예약 변경'),
                         ),
@@ -366,7 +492,9 @@ class _AppointmentDetailScreenState
                       Expanded(
                         child: FilledButton(
                           onPressed: () {
-                            _cancelAppointment(appointment);
+                            _cancelAppointment(
+                              appointment,
+                            );
                           },
                           child: const Text('예약 취소'),
                         ),

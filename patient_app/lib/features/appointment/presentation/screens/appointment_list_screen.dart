@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
-import '../../../../data/models/appointment.dart';
-import '../providers/appointment_provider.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../app/routes/route_names.dart';
 import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loading_view.dart';
-
+import '../../../../data/models/appointment.dart';
+import '../providers/appointment_provider.dart';
 
 class AppointmentListScreen extends ConsumerWidget {
   const AppointmentListScreen({super.key});
@@ -36,10 +35,14 @@ class AppointmentListScreen extends ConsumerWidget {
           ),
           data: (appointments) {
             if (appointments.isEmpty) {
-              return const AppEmptyView(
+              return AppEmptyView(
                 icon: Icons.calendar_month_outlined,
                 title: '등록된 예약이 없습니다.',
-                description: '새로운 예약이 등록되면 이곳에서 확인할 수 있습니다.',
+                description: '새로운 진료 예약을 신청해보세요.',
+                buttonText: '새 예약 신청',
+                onPressed: () {
+                  context.push(RouteNames.appointmentCreate);
+                },
               );
             }
 
@@ -72,12 +75,31 @@ class AppointmentListScreen extends ConsumerWidget {
                   120,
                 ),
                 children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        context.push(
+                          RouteNames.appointmentCreate,
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.add_rounded,
+                      ),
+                      label: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
+                        child: Text('새 예약 신청'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   const Text(
                     '예정된 예약',
                     style: AppTextStyles.headlineMedium,
                   ),
                   const SizedBox(height: 14),
-
                   if (scheduledAppointments.isEmpty)
                     const _EmptySectionCard(
                       message: '예정된 예약이 없습니다.',
@@ -93,15 +115,12 @@ class AppointmentListScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
-
                   const SizedBox(height: 24),
-
                   const Text(
                     '지난 예약',
                     style: AppTextStyles.headlineMedium,
                   ),
                   const SizedBox(height: 14),
-
                   if (pastAppointments.isEmpty)
                     const _EmptySectionCard(
                       message: '지난 예약이 없습니다.',
@@ -241,8 +260,7 @@ class _AppointmentCard extends StatelessWidget {
                     ),
                     child: Text(
                       appointment.status.label,
-                      style:
-                          AppTextStyles.bodySmall.copyWith(
+                      style: AppTextStyles.bodySmall.copyWith(
                         color: statusColor,
                         fontWeight: FontWeight.w700,
                       ),
@@ -330,6 +348,3 @@ class _EmptySectionCard extends StatelessWidget {
     );
   }
 }
-
-
-

@@ -82,6 +82,14 @@ class MoreScreen extends ConsumerWidget {
               context.push(RouteNames.profile);
             },
           ),
+
+          _MoreMenuTile(
+            icon: Icons.family_restroom_outlined,
+            title: '보호자 연동',
+            onTap: () {
+              context.push(RouteNames.guardianLink);
+            },
+          ),
           _MoreMenuTile(
             icon: Icons.qr_code_rounded,
             title: '진료카드 QR',
