@@ -18,8 +18,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
-  final TextEditingController _messageController =
-      TextEditingController();
+  final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _messageFocusNode = FocusNode();
 
@@ -39,9 +38,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await Future<void>.delayed(
-        const Duration(milliseconds: 500),
-      );
+      await Future<void>.delayed(const Duration(milliseconds: 500));
 
       if (!mounted) {
         return;
@@ -49,17 +46,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       _messageFocusNode.requestFocus();
 
-      await SystemChannels.textInput.invokeMethod<void>(
-        'TextInput.show',
-      );
+      await SystemChannels.textInput.invokeMethod<void>('TextInput.show');
     });
   }
 
-  Future<void> _sendMessage([
-    String? suggestedQuestion,
-  ]) async {
-    final content =
-        suggestedQuestion ?? _messageController.text.trim();
+  Future<void> _sendMessage([String? suggestedQuestion]) async {
+    final content = suggestedQuestion ?? _messageController.text.trim();
 
     if (content.isEmpty || _isSending) {
       return;
@@ -67,10 +59,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     setState(() {
       _isSending = true;
-      _messageController.clear();
     });
 
-    await ref.read(chatProvider.notifier).sendMessage(content);
+    final succeeded = await ref
+        .read(chatProvider.notifier)
+        .sendMessage(content);
 
     if (!mounted) {
       return;
@@ -78,11 +71,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     setState(() {
       _isSending = false;
+      if (succeeded) {
+        _messageController.clear();
+      }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom();
     });
+  }
+
+  Future<void> _retryMessage(String errorMessageId) async {
+    if (_isSending) return;
+    setState(() => _isSending = true);
+    await ref.read(chatProvider.notifier).retryMessage(errorMessageId);
+    if (!mounted) return;
+    setState(() => _isSending = false);
   }
 
   Future<void> _startVoiceInput() async {
@@ -94,9 +98,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _isListening = true;
     });
 
-    await Future<void>.delayed(
-      const Duration(seconds: 2),
-    );
+    await Future<void>.delayed(const Duration(seconds: 2));
 
     if (!mounted) {
       return;
@@ -104,19 +106,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     setState(() {
       _isListening = false;
-      _messageController.text =
-          '최근 검사결과를 설명해주세요.';
-      _messageController.selection =
-          TextSelection.collapsed(
+      _messageController.text = '최근 검사결과를 설명해주세요.';
+      _messageController.selection = TextSelection.collapsed(
         offset: _messageController.text.length,
       );
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('음성 입력 내용을 텍스트로 변환했습니다.'),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('음성 입력 내용을 텍스트로 변환했습니다.')));
   }
 
   void _scrollToBottom() {
@@ -152,13 +150,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onPressed: _isSending
                 ? null
                 : () async {
-                    await ref
-                        .read(chatProvider.notifier)
-                        .resetChat();
+                    await ref.read(chatProvider.notifier).resetChat();
                   },
-            icon: const Icon(
-              Icons.refresh_rounded,
-            ),
+            icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
@@ -167,9 +161,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           children: [
             Expanded(
               child: chatState.when(
-                loading: () => const AppLoadingView(
-                  message: '대화를 불러오는 중입니다.',
-                ),
+                loading: () => const AppLoadingView(message: '대화를 불러오는 중입니다.'),
                 error: (error, stackTrace) => AppErrorView(
                   message: '대화를 다시 불러와주세요.',
                   onRetry: () {
@@ -179,29 +171,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 data: (messages) {
                   return ListView(
                     controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(
-                      16,
-                      20,
-                      16,
-                      20,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
                     children: [
-                      _SuggestedQuestions(
-                        onSelected: _sendMessage,
-                      ),
+                      _SuggestedQuestions(onSelected: _sendMessage),
                       const SizedBox(height: 20),
                       ...messages.map(
                         (message) => Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: 14,
-                          ),
+                          padding: const EdgeInsets.only(bottom: 14),
                           child: _MessageBubble(
                             message: message,
+                            onRetry: message.isError
+                                ? () => _retryMessage(message.id)
+                                : null,
                           ),
                         ),
                       ),
-                      if (_isSending)
-                        const _TypingIndicator(),
+                      if (_isSending) const _TypingIndicator(),
                     ],
                   );
                 },
@@ -225,9 +210,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 }
 
 class _SuggestedQuestions extends StatelessWidget {
-  const _SuggestedQuestions({
-    required this.onSelected,
-  });
+  const _SuggestedQuestions({required this.onSelected});
 
   final ValueChanged<String> onSelected;
 
@@ -238,23 +221,19 @@ class _SuggestedQuestions extends StatelessWidget {
       children: [
         Text(
           '추천 질문',
-          style: AppTextStyles.bodyMedium.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+          style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
         SizedBox(
           height: 40,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount:
-                MockChatData.suggestedQuestions.length,
+            itemCount: MockChatData.suggestedQuestions.length,
             separatorBuilder: (context, index) {
               return const SizedBox(width: 8);
             },
             itemBuilder: (context, index) {
-              final question =
-                  MockChatData.suggestedQuestions[index];
+              final question = MockChatData.suggestedQuestions[index];
 
               return ActionChip(
                 label: Text(question),
@@ -271,62 +250,57 @@ class _SuggestedQuestions extends StatelessWidget {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({
-    required this.message,
-  });
+  const _MessageBubble({required this.message, this.onRetry});
 
   final ChatMessage message;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     final isUser = message.isUser;
 
     return Align(
-      alignment: isUser
-          ? Alignment.centerRight
-          : Alignment.centerLeft,
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(
-          maxWidth: 300,
-        ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
+        constraints: const BoxConstraints(maxWidth: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: isUser
               ? AppColors.primary
               : message.isError
-                  ? AppColors.danger.withValues(alpha: 0.08)
-                  : Colors.white,
+              ? AppColors.danger.withValues(alpha: 0.08)
+              : Colors.white,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
             topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(
-              isUser ? 18 : 4,
-            ),
-            bottomRight: Radius.circular(
-              isUser ? 4 : 18,
-            ),
+            bottomLeft: Radius.circular(isUser ? 18 : 4),
+            bottomRight: Radius.circular(isUser ? 4 : 18),
           ),
           border: isUser
               ? null
               : Border.all(
-                  color: message.isError
-                      ? AppColors.danger
-                      : AppColors.border,
+                  color: message.isError ? AppColors.danger : AppColors.border,
                 ),
         ),
-        child: Text(
-          message.content,
-          style: AppTextStyles.bodyMedium.copyWith(
-            color: isUser
-                ? Colors.white
-                : message.isError
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              message.content,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: isUser
+                    ? Colors.white
+                    : message.isError
                     ? AppColors.danger
                     : AppColors.textPrimary,
-            height: 1.5,
-          ),
+                height: 1.5,
+              ),
+            ),
+            if (message.isError && onRetry != null) ...[
+              const SizedBox(height: 6),
+              TextButton(onPressed: onRetry, child: const Text('다시 시도')),
+            ],
+          ],
         ),
       ),
     );
@@ -341,18 +315,14 @@ class _TypingIndicator extends StatelessWidget {
     return const Align(
       alignment: Alignment.centerLeft,
       child: Padding(
-        padding: EdgeInsets.symmetric(
-          vertical: 8,
-        ),
+        padding: EdgeInsets.symmetric(vertical: 8),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
               width: 18,
               height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-              ),
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
             SizedBox(width: 10),
             Text('답변을 작성하고 있습니다...'),
@@ -383,34 +353,20 @@ class _MessageInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(
-        12,
-        10,
-        12,
-        12,
-      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          top: BorderSide(
-            color: AppColors.border,
-          ),
-        ),
+        border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           IconButton(
             tooltip: '음성 입력',
-            onPressed:
-                isSending ? null : onVoicePressed,
+            onPressed: isSending ? null : onVoicePressed,
             icon: Icon(
-              isListening
-                  ? Icons.mic_rounded
-                  : Icons.mic_none_rounded,
-              color: isListening
-                  ? AppColors.danger
-                  : AppColors.primary,
+              isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+              color: isListening ? AppColors.danger : AppColors.primary,
             ),
           ),
           const SizedBox(width: 4),
@@ -424,9 +380,7 @@ class _MessageInput extends StatelessWidget {
               maxLines: 4,
               textInputAction: TextInputAction.newline,
               decoration: InputDecoration(
-                hintText: isListening
-                    ? '음성을 듣고 있습니다...'
-                    : '궁금한 내용을 입력해주세요.',
+                hintText: isListening ? '음성을 듣고 있습니다...' : '궁금한 내용을 입력해주세요.',
                 counterText: '',
               ),
               maxLength: 500,
@@ -435,15 +389,11 @@ class _MessageInput extends StatelessWidget {
           const SizedBox(width: 8),
           IconButton.filled(
             tooltip: '전송',
-            onPressed:
-                isSending ? null : onSendPressed,
-            icon: const Icon(
-              Icons.send_rounded,
-            ),
+            onPressed: isSending ? null : onSendPressed,
+            icon: const Icon(Icons.send_rounded),
           ),
         ],
       ),
     );
   }
 }
-
