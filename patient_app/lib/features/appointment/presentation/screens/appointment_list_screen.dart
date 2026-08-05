@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_error_view.dart';
+import '../../../../app/routes/route_names.dart';
 import '../../data/models/patient_appointment.dart';
 import '../providers/appointment_provider.dart';
 
@@ -22,11 +24,7 @@ class AppointmentListScreen extends ConsumerWidget {
         title: const Text('예약'),
         actions: [
           TextButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('예약 기능을 준비 중입니다.')));
-            },
+            onPressed: () => context.push(RouteNames.appointmentCreate),
             icon: const Icon(Icons.event_available_outlined),
             label: const Text('예약하기'),
           ),
