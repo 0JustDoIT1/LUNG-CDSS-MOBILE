@@ -1,14 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/auth/session_controller.dart';
 import '../../../core/settings/app_settings_controller.dart';
 
 /// 앱 설정 — 화면표시(테마/화면항상켜짐/글자크기) + 알림 + 위젯 + 약관 및 정책
-class NurseAppSettingsScreen extends StatelessWidget {
+/// 알림설정은 실제 서버(NotificationPreference API)와 동기화됨.
+class NurseAppSettingsScreen extends StatefulWidget {
   const NurseAppSettingsScreen({super.key});
 
+  @override
+  State<NurseAppSettingsScreen> createState() => _NurseAppSettingsScreenState();
+}
+
+class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
   // 포인트 청록 컬러
   static const Color pointColor = Color(0xFF0D9488);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final token = context.read<SessionController>().accessToken;
+      if (token != null) {
+        context.read<AppSettingsController>().syncNotificationsFromServer(token);
+      }
+    });
+  }
 
   /// 알림 카테고리별 아이콘
   IconData _getNotificationIcon(String category) {
@@ -61,7 +79,7 @@ class NurseAppSettingsScreen extends StatelessWidget {
                   activeColor: pointColor,
                   secondary: _buildIconBox(Icons.screen_lock_portrait_rounded, iconBgColor: iconBgColor),
                   title: const Text('화면 항상켜짐', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                  subtitle: const Text('케이스검토 중 화면꺼짐 방지'),
+                  subtitle: const Text('업무 중 화면꺼짐 방지'),
                   value: settings.keepScreenOn,
                   onChanged: (v) => settings.setKeepScreenOn(v),
                 ),
@@ -138,7 +156,11 @@ class NurseAppSettingsScreen extends StatelessWidget {
                           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                         ),
                         value: isChecked,
-                        onChanged: (v) => settings.setNotification(categoryKey, v),
+                        onChanged: (v) => settings.setNotification(
+                          categoryKey,
+                          v,
+                          accessToken: context.read<SessionController>().accessToken,
+                        ),
                       );
                     },
                   ),
@@ -162,7 +184,7 @@ class NurseAppSettingsScreen extends StatelessWidget {
               leading: _buildIconBox(Icons.widgets_outlined, isActive: true, iconBgColor: iconBgColor),
               title: const Text('홈스크린 위젯', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
               subtitle: Text(
-                '검토대기 건수를 홈화면에 바로 보여줘요. 기기 홈화면에서 직접 추가할 수 있어요.',
+                '예약관리 요약을 홈화면에 바로 보여줘요. 기기 홈화면에서 직접 추가할 수 있어요.',
                 style: TextStyle(height: 1.4, fontSize: 13, color: isDark ? Colors.grey.shade400 : Colors.black54),
               ),
               isThreeLine: true,
@@ -474,19 +496,19 @@ class NurseAppSettingsScreen extends StatelessWidget {
 
   static const String _termsOfServiceContent = '''
 제 1 조 (목적)
-본 약관은 의사 전용 케이스 검토 및 모니터링 애플리케이션(이하 "서비스")이 제공하는 의료 지원 관련 제반 서비스의 이용 조건 및 절차, 이용자와 회사의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.
+본 약관은 간호사 전용 케어관리 및 모니터링 애플리케이션(이하 "서비스")이 제공하는 의료 지원 관련 제반 서비스의 이용 조건 및 절차, 이용자와 회사의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.
 
-제 2 조 (회원의 자격 및 면허 확인)
-1. 본 서비스는 대한민국 의료법에 따라 면허를 취득한 전문 의료인(의사 및 치과의사 등)에 한해 이용할 수 있습니다.
-2. 회사는 회원의 자격 확인을 위해 면허번호 및 관련 증빙 서류 제출을 요구할 수 있으며, 허위 정보를 입력한 경우 서비스 이용이 즉시 정지될 수 있습니다.
+제 2 조 (회원의 자격 확인)
+1. 본 서비스는 대한민국 의료법에 따라 자격을 취득한 간호사에 한해 이용할 수 있습니다.
+2. 회사는 회원의 자격 확인을 위해 관련 증빙 서류 제출을 요구할 수 있으며, 허위 정보를 입력한 경우 서비스 이용이 즉시 정지될 수 있습니다.
 
-제 3 조 (의료적 판단에 대한 책임의 한계)
-1. 본 서비스가 제공하는 케이스 검토, 데이터 분석 및 AI 기반 보조 정보는 의료인의 진단 및 치료 결정을 보조하기 위한 참고 자료일 뿐입니다.
-2. 환자에 대한 최종 진단, 처방 및 치료에 대한 책임은 전적으로 서비스를 이용하는 담당 의료인(회원)에게 있습니다. 회사는 회원의 의료적 판단 결과에 대해 법적 책임을 지지 않습니다.
+제 3 조 (간호 업무에 대한 책임의 한계)
+1. 본 서비스가 제공하는 예약관리, 복약체크, 위험신호 알림 등은 간호 업무를 보조하기 위한 참고 자료일 뿐입니다.
+2. 환자에 대한 최종 판단 및 조치에 대한 책임은 전적으로 서비스를 이용하는 담당 의료인(회원)에게 있습니다.
 
 제 4 조 (환자 정보 보호 및 익명화)
-1. 회원은 케이스 등록 시 환자의 개인식별정보(성명, 주민등록번호, 상세 주소 등)가 포함되지 않도록 완벽히 익명화(De-identification)하여 업로드하여야 합니다.
-2. 회원이 관련 법령(개인정보 보호법, 의료법 등)을 위반하여 환자 정보를 식별 가능한 상태로 유출한 경우, 그에 따른 모든 법적 책임은 회원 본인에게 있습니다.
+1. 회원은 환자의 개인식별정보 보호를 위해 관련 법령을 준수하여야 합니다.
+2. 회원이 관련 법령(개인정보 보호법, 의료법 등)을 위반하여 환자 정보를 유출한 경우, 그에 따른 모든 법적 책임은 회원 본인에게 있습니다.
 
 제 5 조 (서비스의 변경 및 중지)
 회사는 시스템 점검, 교체 또는 천재지변 등 불가피한 사유가 발생한 경우 서비스의 제공을 일시적으로 중단할 수 있습니다.
@@ -495,20 +517,19 @@ class NurseAppSettingsScreen extends StatelessWidget {
   static const String _privacyPolicyContent = '''
 1. 수집하는 개인정보 항목
 회사는 전문 의료인 회원가입 및 서비스 제공을 위해 아래와 같은 개인정보를 수집하고 있습니다.
-- 필수항목: 성명, 이메일 주소, 비밀번호, 소속 병원/기관명, 진료 과목, 의사 면허 번호
-- 서비스 이용 과정에서 생성되는 정보: 접속 로그, IP 주소, 쿠키, 서비스 이용 기록, 기기 식별 정보
+- 필수항목: 성명, 이메일 주소, 비밀번호, 소속 병원/기관명, 부서
 
 2. 개인정보의 수집 및 이용 목적
 수집된 개인정보는 다음의 목적을 위해 활용됩니다.
-- 회원 자격 확인: 의사 면허 유효성 확인 및 보건의료인 자격 검증
-- 서비스 제공: 의료 케이스 검토, 데이터 연동, 알림 서비스 제공
+- 회원 자격 확인: 보건의료인 자격 검증
+- 서비스 제공: 예약관리, 케어플랜, 알림 서비스 제공
 - 서비스 개선: 신규 기능 개발 및 이용 형태 분석을 통한 서비스 고도화
 
 3. 환자 데이터 처리 및 비식별화
-본 서비스에 등록되는 케이스 및 의료 영상 데이터는 개인정보 보호법 및 의료법에 따라 개인을 식별할 수 없도록 철저히 비식별 조치되어 처리됩니다. 회사는 식별 가능한 환자 데이터를 서버에 저장하지 않습니다.
+본 서비스에 등록되는 환자 관련 데이터는 개인정보 보호법 및 의료법에 따라 철저히 관리됩니다.
 
 4. 개인정보의 보유 및 이용 기간
-원칙적으로 개인정보 수집 및 이용 목적이 달성된 후에는 해당 정보를 지체 없이 파기합니다. 단, 관계 법령의 규정에 의하여 보존할 필요가 있는 경우 법령에서 정한 일정 기간 동안 회원 정보를 보관합니다.
+원칙적으로 개인정보 수집 및 이용 목적이 달성된 후에는 해당 정보를 지체 없이 파기합니다.
 - 회원 탈퇴 시: 지체 없이 파기 (단, 법령 위반 조사를 위한 보관 필요 시 최대 30일)
 
 5. 개인정보의 제3자 제공
