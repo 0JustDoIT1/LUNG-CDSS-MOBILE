@@ -6,6 +6,8 @@ import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loading_view.dart';
 import '../../data/models/patient_notification.dart';
+import '../../data/notification_deep_link_coordinator.dart';
+import '../providers/notification_deep_link_provider.dart';
 import '../providers/notification_provider.dart';
 
 class NotificationListScreen extends ConsumerWidget {
@@ -57,10 +59,10 @@ class NotificationListScreen extends ConsumerWidget {
                   return _NotificationCard(
                     notification: notification,
                     isProcessing: isProcessing,
-                    onTap: notification.isRead || isProcessing
+                    onTap: isProcessing
                         ? null
                         : () {
-                            _markAsRead(context, ref, notification.id);
+                            _handleNotificationTap(context, ref, notification);
                           },
                   );
                 },
@@ -70,6 +72,27 @@ class NotificationListScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  static Future<void> _handleNotificationTap(
+    BuildContext context,
+    WidgetRef ref,
+    PatientNotification notification,
+  ) async {
+    if (!notification.isRead) {
+      await _markAsRead(context, ref, notification.id);
+      if (!context.mounted) return;
+    }
+
+    final result = ref
+        .read(notificationDeepLinkCoordinatorProvider)
+        .handleInAppDeepLink(notification.deepLink);
+    if (result == NotificationNavigationResult.invalid ||
+        result == NotificationNavigationResult.unsupported) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('해당 알림의 화면을 열 수 없습니다.')));
+    }
   }
 
   static Future<void> _markAsRead(

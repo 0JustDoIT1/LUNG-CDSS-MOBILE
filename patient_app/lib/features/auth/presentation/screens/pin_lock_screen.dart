@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../convenience/data/notification_deep_link_coordinator.dart';
+import '../../../convenience/presentation/providers/notification_deep_link_provider.dart';
 import '../providers/auth_provider.dart';
 
 class PinLockScreen extends ConsumerStatefulWidget {
@@ -29,9 +31,9 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
       _errorText = null;
     });
 
-    final bool isValid = await ref.read(authProvider.notifier).verifyPin(
-          pin: _pin,
-        );
+    final bool isValid = await ref
+        .read(authProvider.notifier)
+        .verifyPin(pin: _pin);
 
     if (!mounted) {
       return;
@@ -65,7 +67,12 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
       return;
     }
 
-    context.go(RouteNames.home);
+    final navigationResult = ref
+        .read(notificationDeepLinkCoordinatorProvider)
+        .activateAndHandlePending();
+    if (navigationResult != NotificationNavigationResult.navigated) {
+      context.go(RouteNames.home);
+    }
   }
 
   void _enterNumber(String number) {
@@ -122,10 +129,7 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
           shape: const CircleBorder(),
           padding: EdgeInsets.zero,
         ),
-        child: Text(
-          number,
-          style: AppTextStyles.headlineMedium,
-        ),
+        child: Text(number, style: AppTextStyles.headlineMedium),
       ),
     );
   }
@@ -136,14 +140,9 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 32,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 360,
-              ),
+              constraints: const BoxConstraints(maxWidth: 360),
               child: Column(
                 children: [
                   const Icon(
@@ -183,9 +182,7 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Text(
                             _errorText ?? '',
@@ -212,19 +209,14 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
                         '9',
                       ])
                         _buildNumberButton(number),
-                      const SizedBox(
-                        width: 72,
-                        height: 72,
-                      ),
+                      const SizedBox(width: 72, height: 72),
                       _buildNumberButton('0'),
                       SizedBox(
                         width: 72,
                         height: 72,
                         child: IconButton(
                           onPressed: _isLoading ? null : _removeNumber,
-                          icon: const Icon(
-                            Icons.backspace_outlined,
-                          ),
+                          icon: const Icon(Icons.backspace_outlined),
                         ),
                       ),
                     ],
