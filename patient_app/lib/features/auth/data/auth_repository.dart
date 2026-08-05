@@ -93,12 +93,10 @@ class AuthRepository {
 
   Future<PatientProfile> updatePatientProfile({
     String? name,
-    String? birthDate,
     String? gender,
   }) async {
     final json = await _authApi.updatePatientProfile(
       name: name,
-      birthDate: birthDate,
       gender: gender,
     );
     if (json is! Map<String, dynamic>) {

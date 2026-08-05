@@ -21,7 +21,6 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _nameController = TextEditingController();
   bool _isEditing = false;
-  DateTime? _editedBirthDate;
   PatientGender? _editedGender;
 
   @override
@@ -34,7 +33,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     setState(() {
       _isEditing = true;
       _nameController.text = profile.name;
-      _editedBirthDate = profile.birthDate;
       _editedGender = _genderFromApi(profile.gender);
     });
   }
@@ -42,31 +40,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void _cancelEditing() {
     setState(() {
       _isEditing = false;
-      _editedBirthDate = null;
       _editedGender = null;
     });
-  }
-
-  Future<void> _selectBirthDate() async {
-    final now = DateTime.now();
-    final selected = await showDatePicker(
-      context: context,
-      initialDate: _editedBirthDate ?? DateTime(now.year - 30),
-      firstDate: DateTime(1900),
-      lastDate: now,
-      helpText: '생년월일 선택',
-      cancelText: '취소',
-      confirmText: '확인',
-    );
-    if (selected != null && mounted) {
-      setState(() => _editedBirthDate = selected);
-    }
   }
 
   bool _hasChanges(PatientProfile profile) {
     final name = _nameController.text.trim();
     return name != profile.name ||
-        _dateApiValue(_editedBirthDate!) != _dateApiValue(profile.birthDate) ||
         _editedGender?.apiValue != profile.gender;
   }
 
@@ -82,17 +62,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
 
     final name = trimmedName == profile.name ? null : trimmedName;
-    final birthDate =
-        _dateApiValue(_editedBirthDate!) == _dateApiValue(profile.birthDate)
-        ? null
-        : _dateApiValue(_editedBirthDate!);
     final gender = _editedGender?.apiValue == profile.gender
         ? null
         : _editedGender?.apiValue;
 
     final success = await ref
         .read(patientProfileUpdateProvider.notifier)
-        .saveProfile(name: name, birthDate: birthDate, gender: gender);
+        .saveProfile(name: name, gender: gender);
     if (!mounted) return;
 
     if (success) {
@@ -129,7 +105,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ? _EditProfileView(
                   profile: profile,
                   nameController: _nameController,
-                  birthDate: _editedBirthDate!,
                   selectedGender: _editedGender,
                   isSaving: isSaving,
                   canSave:
@@ -137,7 +112,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       _hasChanges(profile) &&
                       !isSaving,
                   onNameChanged: (_) => setState(() {}),
-                  onBirthDateTap: _selectBirthDate,
                   onGenderSelected: (gender) {
                     setState(() => _editedGender = gender);
                   },
@@ -158,12 +132,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (value.apiValue == gender) return value;
     }
     return null;
-  }
-
-  static String _dateApiValue(DateTime date) {
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    return '${date.year}-$month-$day';
   }
 
   static String _loadErrorMessage(Object error) {
@@ -197,7 +165,6 @@ class _ProfileView extends StatelessWidget {
             _InfoRow(
               label: '생년월일',
               value: _displayDate(profile.birthDate),
-              isLocked: false,
             ),
             _InfoRow(
               label: '성별',
@@ -232,12 +199,10 @@ class _EditProfileView extends StatelessWidget {
   const _EditProfileView({
     required this.profile,
     required this.nameController,
-    required this.birthDate,
     required this.selectedGender,
     required this.isSaving,
     required this.canSave,
     required this.onNameChanged,
-    required this.onBirthDateTap,
     required this.onGenderSelected,
     required this.onCancel,
     required this.onSave,
@@ -245,12 +210,10 @@ class _EditProfileView extends StatelessWidget {
 
   final PatientProfile profile;
   final TextEditingController nameController;
-  final DateTime birthDate;
   final PatientGender? selectedGender;
   final bool isSaving;
   final bool canSave;
   final ValueChanged<String> onNameChanged;
-  final VoidCallback onBirthDateTap;
   final ValueChanged<PatientGender> onGenderSelected;
   final VoidCallback? onCancel;
   final VoidCallback? onSave;
@@ -268,16 +231,13 @@ class _EditProfileView extends StatelessWidget {
           decoration: const InputDecoration(labelText: '이름'),
         ),
         const SizedBox(height: 18),
-        InkWell(
+        InputDecorator(
           key: const ValueKey('patient-profile-birth-date-field'),
-          onTap: onBirthDateTap,
-          child: InputDecorator(
-            decoration: const InputDecoration(
-              labelText: '생년월일',
-              suffixIcon: Icon(Icons.calendar_month_outlined),
-            ),
-            child: Text(_displayDate(birthDate)),
+          decoration: const InputDecoration(
+            labelText: '생년월일',
+            suffixIcon: Icon(Icons.lock_outline_rounded),
           ),
+          child: Text(_displayDate(profile.birthDate)),
         ),
         const SizedBox(height: 18),
         Text('성별', style: AppTextStyles.bodyMedium),

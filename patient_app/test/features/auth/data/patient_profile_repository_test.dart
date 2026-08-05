@@ -58,7 +58,6 @@ void main() {
       expect(profile.name, 'Patient');
       expect(api.updatedName, 'Patient');
       expect(api.updatedGender, 'female');
-      expect(api.updatedBirthDate, isNull);
     });
 
     test('preserves an update ApiException', () async {
@@ -94,7 +93,6 @@ class _FakeAuthApi extends AuthApi {
   final dynamic response;
   final Object? error;
   String? updatedName;
-  String? updatedBirthDate;
   String? updatedGender;
 
   @override
@@ -108,12 +106,10 @@ class _FakeAuthApi extends AuthApi {
   @override
   Future<dynamic> updatePatientProfile({
     String? name,
-    String? birthDate,
     String? gender,
   }) async {
     if (error != null) throw error!;
     updatedName = name;
-    updatedBirthDate = birthDate;
     updatedGender = gender;
     return response;
   }

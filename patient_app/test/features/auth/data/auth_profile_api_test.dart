@@ -5,14 +5,14 @@ import 'package:patient_app/features/auth/data/auth_api.dart';
 
 void main() {
   group('AuthApi.updatePatientProfile', () {
-    test('patches only changed name and birth date fields', () async {
+    test('patches only editable name and gender fields', () async {
       final client = _FakeApiClient();
       final api = AuthApi(apiClient: client);
 
-      await api.updatePatientProfile(name: '홍길동', birthDate: '1990-01-01');
+      await api.updatePatientProfile(name: '홍길동', gender: 'female');
 
       expect(client.lastPath, '/api/auth/patient/profile/');
-      expect(client.lastData, {'name': '홍길동', 'birth_date': '1990-01-01'});
+      expect(client.lastData, {'name': '홍길동', 'gender': 'female'});
     });
 
     test('patches only gender when only gender changed', () async {
@@ -36,6 +36,7 @@ void main() {
       expect(body, isNot(contains('hospital')));
       expect(body, isNot(contains('hospital_name')));
       expect(body, isNot(contains('assigned_doctor')));
+      expect(body, isNot(contains('birth_date')));
     });
   });
 }

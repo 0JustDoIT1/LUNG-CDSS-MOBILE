@@ -60,7 +60,6 @@ class AuthApi {
 
   Future<dynamic> updatePatientProfile({
     String? name,
-    String? birthDate,
     String? gender,
   }) async {
     if (gender != null && gender != 'male' && gender != 'female') {
@@ -69,7 +68,6 @@ class AuthApi {
 
     final data = <String, dynamic>{
       'name': ?name,
-      'birth_date': ?birthDate,
       'gender': ?gender,
     };
 

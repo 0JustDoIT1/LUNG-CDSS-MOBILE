@@ -29,7 +29,6 @@ class PatientProfileUpdateNotifier
 
   Future<bool> saveProfile({
     String? name,
-    String? birthDate,
     String? gender,
   }) async {
     if (state.isLoading) return false;
@@ -39,7 +38,6 @@ class PatientProfileUpdateNotifier
       final repository = ref.read(authRepositoryProvider);
       return repository.updatePatientProfile(
         name: name,
-        birthDate: birthDate,
         gender: gender,
       );
     });

@@ -44,6 +44,57 @@ void main() {
     expect(find.text('여성'), findsOneWidget);
     expect(find.text('010-1234-5678'), findsOneWidget);
     expect(find.text('서울병원'), findsOneWidget);
+
+    final birthDateRow = find.ancestor(
+      of: find.text('생년월일'),
+      matching: find.byType(Row),
+    );
+    expect(birthDateRow, findsOneWidget);
+    expect(
+      find.descendant(
+        of: birthDateRow,
+        matching: find.byIcon(Icons.lock_outline_rounded),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('keeps birth date read-only while editing profile', (
+    tester,
+  ) async {
+    await _pumpProfile(tester, _profile);
+    final profileList = find.byType(ListView);
+    final editFinder = find.byKey(
+      const ValueKey('patient-profile-edit-button'),
+    );
+    await tester.dragUntilVisible(
+      editFinder,
+      profileList,
+      const Offset(0, -250),
+    );
+    await tester.tap(editFinder);
+    await tester.pumpAndSettle();
+
+    final birthDateFinder = find.byKey(
+      const ValueKey('patient-profile-birth-date-field'),
+    );
+    expect(birthDateFinder, findsOneWidget);
+    expect(find.text('1990.01.01'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: birthDateFinder,
+        matching: find.byIcon(Icons.lock_outline_rounded),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: birthDateFinder, matching: find.byType(InkWell)),
+      findsNothing,
+    );
+
+    await tester.tap(birthDateFinder);
+    await tester.pump();
+    expect(find.text('생년월일 선택'), findsNothing);
   });
 
   testWidgets('blocks saving when nothing changed or the name is empty', (
