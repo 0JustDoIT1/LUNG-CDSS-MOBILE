@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../data/models/auth_state.dart';
@@ -8,8 +10,7 @@ final appLockRepositoryProvider = Provider<MockAuthRepository>((ref) {
   return MockAuthRepository();
 });
 
-final authProvider =
-    AsyncNotifierProvider<AuthNotifier, AuthState>(
+final authProvider = AsyncNotifierProvider<AuthNotifier, AuthState>(
   AuthNotifier.new,
 );
 
@@ -17,9 +18,12 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   @override
   Future<AuthState> build() async {
     final repository = ref.read(authRepositoryProvider);
+    final deviceTokenService = ref.read(deviceTokenServiceProvider);
+    deviceTokenService.start();
     final hasAccessToken = await repository.hasAccessToken();
 
     if (hasAccessToken) {
+      unawaited(deviceTokenService.tryRegisterCurrentDevice());
       return const AuthState(
         isLoggedIn: true,
         isNewUser: false,
@@ -30,24 +34,17 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     return const AuthState();
   }
 
-  Future<void> signInWithSocial({
-    required String provider,
-  }) async {
+  Future<void> signInWithSocial({required String provider}) async {
     state = const AsyncLoading();
 
     state = await AsyncValue.guard(() async {
       if (provider != 'google') {
-        throw UnsupportedError(
-          '$provider 로그인은 아직 연결되지 않았습니다.',
-        );
+        throw UnsupportedError('$provider 로그인은 아직 연결되지 않았습니다.');
       }
 
-      final googleSignInService = ref.read(
-        googleSignInServiceProvider,
-      );
+      final googleSignInService = ref.read(googleSignInServiceProvider);
 
-      final idToken =
-          await googleSignInService.signInAndGetIdToken();
+      final idToken = await googleSignInService.signInAndGetIdToken();
 
       final repository = ref.read(authRepositoryProvider);
 
@@ -57,6 +54,9 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       );
 
       if (result.isExistingMember) {
+        final deviceTokenService = ref.read(deviceTokenServiceProvider);
+        deviceTokenService.start();
+        unawaited(deviceTokenService.tryRegisterCurrentDevice());
         return const AuthState(
           isLoggedIn: true,
           isNewUser: false,
@@ -72,9 +72,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
         );
       }
 
-      throw const FormatException(
-        '로그인 결과를 확인할 수 없습니다.',
-      );
+      throw const FormatException('로그인 결과를 확인할 수 없습니다.');
     });
   }
 
@@ -82,6 +80,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     required DateTime birthDate,
     required String hospitalId,
     required String phoneNumber,
+    required String gender,
   }) async {
     state = const AsyncLoading();
 
@@ -97,7 +96,12 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
         birthDate: formattedBirthDate,
         hospitalId: hospitalId,
         phoneNumber: phoneNumber,
+        gender: gender,
       );
+
+      final deviceTokenService = ref.read(deviceTokenServiceProvider);
+      deviceTokenService.start();
+      unawaited(deviceTokenService.tryRegisterCurrentDevice());
 
       return const AuthState(
         isLoggedIn: true,
@@ -111,9 +115,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     return result.hasValue;
   }
 
-  Future<void> sendVerificationCode({
-    required String phoneNumber,
-  }) async {
+  Future<void> sendVerificationCode({required String phoneNumber}) async {
     // SMS 인증 기능은 사용하지 않습니다.
   }
 
@@ -129,23 +131,19 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     return repository.authenticateWithBiometrics();
   }
 
-  Future<bool> verifyPin({
-    required String pin,
-  }) async {
+  Future<bool> verifyPin({required String pin}) async {
     final repository = ref.read(appLockRepositoryProvider);
 
-    return repository.verifyPin(
-      pin: pin,
-    );
+    return repository.verifyPin(pin: pin);
   }
 
   Future<void> signOut() async {
     final repository = ref.read(authRepositoryProvider);
-    final googleSignInService = ref.read(
-      googleSignInServiceProvider,
-    );
+    final googleSignInService = ref.read(googleSignInServiceProvider);
+    final deviceTokenService = ref.read(deviceTokenServiceProvider);
 
     try {
+      await deviceTokenService.tryUnregisterCurrentDevice();
       await repository.logout();
       await googleSignInService.signOut();
     } finally {

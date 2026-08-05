@@ -7,6 +7,36 @@ import 'package:patient_app/features/symptom/data/symptom_api.dart';
 import 'package:patient_app/features/symptom/data/symptom_repository.dart';
 
 void main() {
+  group('SymptomRepository.fetchMySymptomRecords', () {
+    test('parses records and preserves an empty array', () async {
+      final repository = SymptomRepository(
+        _FakeSymptomApi(records: <dynamic>[]),
+      );
+      expect(await repository.fetchMySymptomRecords(), isEmpty);
+    });
+
+    test('rejects a non-object array item', () async {
+      final repository = SymptomRepository(
+        _FakeSymptomApi(records: <dynamic>['invalid']),
+      );
+      await expectLater(
+        repository.fetchMySymptomRecords(),
+        throwsFormatException,
+      );
+    });
+
+    test('preserves an ApiException', () async {
+      const exception = ApiException(message: 'failed', statusCode: 403);
+      final repository = SymptomRepository(
+        _FakeSymptomApi(fetchError: exception),
+      );
+      await expectLater(
+        repository.fetchMySymptomRecords(),
+        throwsA(same(exception)),
+      );
+    });
+  });
+
   group('SymptomRepository.submitSymptoms', () {
     test('completes after the API succeeds', () async {
       final api = _FakeSymptomApi();
@@ -41,10 +71,22 @@ final _request = SymptomSubmitRequest(
 );
 
 class _FakeSymptomApi extends SymptomApi {
-  _FakeSymptomApi({this.error}) : super(ApiClient(dio: Dio()));
+  _FakeSymptomApi({
+    this.error,
+    this.records = const <dynamic>[],
+    this.fetchError,
+  }) : super(ApiClient(dio: Dio()));
 
   final Object? error;
+  final List<dynamic> records;
+  final Object? fetchError;
   SymptomSubmitRequest? receivedRequest;
+
+  @override
+  Future<List<dynamic>> fetchMySymptomRecords() async {
+    if (fetchError != null) throw fetchError!;
+    return records;
+  }
 
   @override
   Future<void> submitSymptoms(SymptomSubmitRequest request) async {

@@ -6,6 +6,33 @@ import 'package:patient_app/features/symptom/data/models/symptom_submit_request.
 import 'package:patient_app/features/symptom/data/symptom_api.dart';
 
 void main() {
+  group('SymptomApi.fetchMySymptomRecords', () {
+    test('gets the exact patient list endpoint without a wrapper', () async {
+      final client = _FakeApiClient(responseData: <dynamic>[]);
+      final records = await SymptomApi(client).fetchMySymptomRecords();
+
+      expect(client.lastPath, '/api/symptoms/checks/mine/');
+      expect(records, isEmpty);
+    });
+
+    test('returns an array response unchanged', () async {
+      final data = <dynamic>[
+        <String, dynamic>{'id': 'record-id'},
+      ];
+      final records = await SymptomApi(
+        _FakeApiClient(responseData: data),
+      ).fetchMySymptomRecords();
+      expect(records, same(data));
+    });
+
+    test('rejects a wrapped response', () async {
+      final api = SymptomApi(
+        _FakeApiClient(responseData: <String, dynamic>{'results': <dynamic>[]}),
+      );
+      await expectLater(api.fetchMySymptomRecords(), throwsFormatException);
+    });
+  });
+
   group('SymptomApi.submitSymptoms', () {
     test('posts the exact request body to the checks endpoint', () async {
       final client = _FakeApiClient(
@@ -54,6 +81,20 @@ class _FakeApiClient extends ApiClient {
   final Object? error;
   String? lastPath;
   Object? lastData;
+
+  @override
+  Future<Response<T>> get<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) async {
+    lastPath = path;
+    if (error != null) throw error!;
+    return Response<T>(
+      data: responseData as T?,
+      requestOptions: RequestOptions(path: path),
+    );
+  }
 
   @override
   Future<Response<T>> post<T>(

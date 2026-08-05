@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_error_view.dart';
-import '../../../../core/widgets/app_loading_view.dart';
+import '../../../../app/routes/route_names.dart';
 import '../../data/models/patient_appointment.dart';
 import '../providers/appointment_provider.dart';
 
@@ -19,10 +20,20 @@ class AppointmentListScreen extends ConsumerWidget {
     final cancellingAppointmentIds = ref.watch(appointmentCancelProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('예약')),
+      appBar: AppBar(
+        title: const Text('예약'),
+        actions: [
+          TextButton.icon(
+            onPressed: () => context.push(RouteNames.appointmentCreate),
+            icon: const Icon(Icons.event_available_outlined),
+            label: const Text('예약하기'),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: SafeArea(
         child: appointmentState.when(
-          loading: () => const AppLoadingView(message: '예약 정보를 불러오는 중입니다.'),
+          loading: () => const _AppointmentListSkeleton(),
           error: (error, stackTrace) => AppErrorView(
             message: _errorMessage(error),
             onRetry: () => ref.invalidate(myAppointmentsProvider),
@@ -145,6 +156,189 @@ class AppointmentListScreen extends ConsumerWidget {
       }
     }
     return '예약 취소에 실패했습니다.';
+  }
+}
+
+class _AppointmentListSkeleton extends StatefulWidget {
+  const _AppointmentListSkeleton();
+
+  @override
+  State<_AppointmentListSkeleton> createState() =>
+      _AppointmentListSkeletonState();
+}
+
+class _AppointmentListSkeletonState extends State<_AppointmentListSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _controller.repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+          children: [
+            _AppointmentSkeletonCard(progress: _animation.value),
+            const SizedBox(height: 14),
+            _AppointmentSkeletonCard(progress: _animation.value),
+            const SizedBox(height: 18),
+            Text(
+              '예약 정보를 불러오는 중입니다.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AppointmentSkeletonCard extends StatelessWidget {
+  const _AppointmentSkeletonCard({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 158,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _AppointmentShimmerBone(
+                width: 50,
+                height: 50,
+                borderRadius: 15,
+                progress: progress,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    FractionallySizedBox(
+                      widthFactor: 0.78,
+                      alignment: Alignment.centerLeft,
+                      child: _AppointmentShimmerBone(
+                        width: double.infinity,
+                        height: 18,
+                        borderRadius: 7,
+                        progress: progress,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    FractionallySizedBox(
+                      widthFactor: 0.58,
+                      alignment: Alignment.centerLeft,
+                      child: _AppointmentShimmerBone(
+                        width: double.infinity,
+                        height: 14,
+                        borderRadius: 6,
+                        progress: progress,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _AppointmentShimmerBone(
+                width: 70,
+                height: 28,
+                borderRadius: 14,
+                progress: progress,
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _AppointmentShimmerBone(
+            width: 154,
+            height: 18,
+            borderRadius: 7,
+            progress: progress,
+          ),
+          const SizedBox(height: 8),
+          _AppointmentShimmerBone(
+            width: 72,
+            height: 14,
+            borderRadius: 6,
+            progress: progress,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AppointmentShimmerBone extends StatelessWidget {
+  const _AppointmentShimmerBone({
+    required this.width,
+    required this.height,
+    required this.borderRadius,
+    required this.progress,
+  });
+
+  final double width;
+  final double height;
+  final double borderRadius;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final offset = -1.5 + (progress * 3);
+
+    return ShaderMask(
+      blendMode: BlendMode.srcATop,
+      shaderCallback: (bounds) {
+        return LinearGradient(
+          begin: Alignment(offset - 1, 0),
+          end: Alignment(offset + 1, 0),
+          colors: const [
+            Color(0xFFE7F0F6),
+            Color(0xFFF8FCFF),
+            Color(0xFFE7F0F6),
+          ],
+          stops: const [0.25, 0.5, 0.75],
+        ).createShader(bounds);
+      },
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE7F0F6),
+          borderRadius: BorderRadius.circular(borderRadius),
+        ),
+      ),
+    );
   }
 }
 

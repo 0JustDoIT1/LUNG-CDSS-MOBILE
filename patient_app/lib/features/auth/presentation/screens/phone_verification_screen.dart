@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../data/models/hospital.dart';
+import '../../data/models/patient_gender.dart';
 import '../providers/auth_dependency_providers.dart';
 import '../providers/auth_provider.dart';
 
@@ -22,11 +24,11 @@ class PhoneVerificationScreen extends ConsumerStatefulWidget {
 class _PhoneVerificationScreenState
     extends ConsumerState<PhoneVerificationScreen> {
   final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _birthDateController =
-      TextEditingController();
+  final TextEditingController _birthDateController = TextEditingController();
 
   Hospital? _hospital;
   DateTime? _selectedBirthDate;
+  PatientGender? _selectedGender;
 
   bool _isLoadingHospital = true;
   bool _isRegistering = false;
@@ -36,10 +38,7 @@ class _PhoneVerificationScreenState
   String? _hospitalErrorText;
 
   bool get _isValidPhoneNumber {
-    final numbersOnly = _phoneController.text.replaceAll(
-      RegExp(r'[^0-9]'),
-      '',
-    );
+    final numbersOnly = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
 
     return RegExp(r'^010\d{8}$').hasMatch(numbersOnly);
   }
@@ -48,6 +47,7 @@ class _PhoneVerificationScreenState
     return _isValidPhoneNumber &&
         _selectedBirthDate != null &&
         _hospital != null &&
+        _selectedGender != null &&
         !_isLoadingHospital &&
         !_isRegistering;
   }
@@ -101,10 +101,7 @@ class _PhoneVerificationScreenState
   }
 
   String _formatPhoneNumber(String value) {
-    final numbersOnly = value.replaceAll(
-      RegExp(r'[^0-9]'),
-      '',
-    );
+    final numbersOnly = value.replaceAll(RegExp(r'[^0-9]'), '');
 
     if (numbersOnly.length <= 3) {
       return numbersOnly;
@@ -128,9 +125,7 @@ class _PhoneVerificationScreenState
     if (formatted != value) {
       _phoneController.value = TextEditingValue(
         text: formatted,
-        selection: TextSelection.collapsed(
-          offset: formatted.length,
-        ),
+        selection: TextSelection.collapsed(offset: formatted.length),
       );
     }
 
@@ -152,12 +147,8 @@ class _PhoneVerificationScreenState
 
     final selectedDate = await showDatePicker(
       context: context,
-      initialDate: _selectedBirthDate ??
-          DateTime(
-            now.year - 30,
-            now.month,
-            now.day,
-          ),
+      initialDate:
+          _selectedBirthDate ?? DateTime(now.year - 30, now.month, now.day),
       firstDate: DateTime(1900),
       lastDate: now,
       helpText: '생년월일 선택',
@@ -196,6 +187,10 @@ class _PhoneVerificationScreenState
       hasError = true;
     }
 
+    if (_selectedGender == null) {
+      hasError = true;
+    }
+
     if (hasError) {
       setState(() {});
       return;
@@ -211,6 +206,7 @@ class _PhoneVerificationScreenState
           birthDate: _selectedBirthDate!,
           hospitalId: _hospital!.id,
           phoneNumber: _phoneController.text,
+          gender: _selectedGender!.apiValue,
         );
 
     if (!mounted) {
@@ -229,13 +225,21 @@ class _PhoneVerificationScreenState
     final authAsync = ref.read(authProvider);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          authAsync.error?.toString() ??
-              '회원가입에 실패했습니다. 다시 시도해주세요.',
-        ),
-      ),
+      SnackBar(content: Text(_registrationErrorMessage(authAsync.error))),
     );
+  }
+
+  String _registrationErrorMessage(Object? error) {
+    if (error is ApiException && error.statusCode == 400) {
+      return '입력한 회원가입 정보를 확인해주세요.';
+    }
+    if (error is ApiException && error.code == 'TIMEOUT') {
+      return '서버 응답 시간이 초과되었습니다.';
+    }
+    if (error is ApiException && error.code == 'CONNECTION_ERROR') {
+      return '네트워크 연결을 확인해주세요.';
+    }
+    return '회원가입에 실패했습니다. 다시 시도해주세요.';
   }
 
   @override
@@ -246,9 +250,7 @@ class _PhoneVerificationScreenState
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-          ),
+          icon: const Icon(Icons.arrow_back_ios_new),
           onPressed: () {
             context.go(RouteNames.login);
           },
@@ -257,14 +259,9 @@ class _PhoneVerificationScreenState
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 32,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 420,
-              ),
+              constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -319,6 +316,17 @@ class _PhoneVerificationScreenState
 
                   const SizedBox(height: 16),
 
+                  _GenderSelector(
+                    selectedGender: _selectedGender,
+                    onSelected: (gender) {
+                      setState(() {
+                        _selectedGender = gender;
+                      });
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
                   _HospitalField(
                     hospital: _hospital,
                     isLoading: _isLoadingHospital,
@@ -329,6 +337,7 @@ class _PhoneVerificationScreenState
                   const SizedBox(height: 24),
 
                   AppButton(
+                    key: const ValueKey('patient-register-submit-button'),
                     text: '가입하기',
                     isLoading: _isRegistering,
                     onPressed: _canRegister ? _register : null,
@@ -339,6 +348,91 @@ class _PhoneVerificationScreenState
           ),
         ),
       ),
+    );
+  }
+}
+
+class _GenderSelector extends StatelessWidget {
+  const _GenderSelector({
+    required this.selectedGender,
+    required this.onSelected,
+  });
+
+  final PatientGender? selectedGender;
+  final ValueChanged<PatientGender> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '성별',
+          style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: PatientGender.values
+              .map((gender) {
+                final isSelected = selectedGender == gender;
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: gender == PatientGender.female ? 6 : 0,
+                      left: gender == PatientGender.male ? 6 : 0,
+                    ),
+                    child: Semantics(
+                      button: true,
+                      selected: isSelected,
+                      label: '${gender.label} 선택',
+                      child: Material(
+                        color: isSelected
+                            ? AppColors.primary.withValues(alpha: 0.1)
+                            : Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.border,
+                            width: isSelected ? 1.5 : 1,
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: () => onSelected(gender),
+                          child: SizedBox(
+                            height: 48,
+                            child: Center(
+                              child: Text(
+                                gender.label,
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  color: isSelected
+                                      ? AppColors.primary
+                                      : AppColors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              })
+              .toList(growable: false),
+        ),
+        if (selectedGender == null) ...[
+          const SizedBox(height: 8),
+          Text(
+            '성별을 선택해 주세요.',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -362,9 +456,7 @@ class _HospitalField extends StatelessWidget {
       return const InputDecorator(
         decoration: InputDecoration(
           labelText: '소속병원',
-          prefixIcon: Icon(
-            Icons.local_hospital_outlined,
-          ),
+          prefixIcon: Icon(Icons.local_hospital_outlined),
           border: OutlineInputBorder(),
         ),
         child: Row(
@@ -372,9 +464,7 @@ class _HospitalField extends StatelessWidget {
             SizedBox(
               width: 18,
               height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-              ),
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
             SizedBox(width: 12),
             Text('병원 정보를 불러오는 중입니다.'),
@@ -390,9 +480,7 @@ class _HospitalField extends StatelessWidget {
           InputDecorator(
             decoration: const InputDecoration(
               labelText: '소속병원',
-              prefixIcon: Icon(
-                Icons.local_hospital_outlined,
-              ),
+              prefixIcon: Icon(Icons.local_hospital_outlined),
               border: OutlineInputBorder(),
               errorText: '병원 정보를 불러오지 못했습니다.',
             ),
@@ -411,14 +499,10 @@ class _HospitalField extends StatelessWidget {
     return InputDecorator(
       decoration: const InputDecoration(
         labelText: '소속병원',
-        prefixIcon: Icon(
-          Icons.local_hospital_outlined,
-        ),
+        prefixIcon: Icon(Icons.local_hospital_outlined),
         border: OutlineInputBorder(),
       ),
-      child: Text(
-        hospital?.name ?? '',
-      ),
+      child: Text(hospital?.name ?? ''),
     );
   }
 }

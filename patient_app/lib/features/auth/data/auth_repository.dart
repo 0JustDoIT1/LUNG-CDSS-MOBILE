@@ -53,6 +53,7 @@ class AuthRepository {
     required String birthDate,
     required String hospitalId,
     required String phoneNumber,
+    required String gender,
   }) async {
     final signupToken = await _tokenStorage.readSignupToken();
 
@@ -65,6 +66,7 @@ class AuthRepository {
       birthDate: birthDate,
       hospitalId: hospitalId,
       phoneNumber: phoneNumber,
+      gender: gender,
     );
 
     final result = AuthResult.fromJson(json);
@@ -85,6 +87,22 @@ class AuthRepository {
     final json = await _authApi.getPatientProfile();
     if (json is! Map<String, dynamic>) {
       throw const FormatException('환자 프로필 응답은 객체여야 합니다.');
+    }
+    return PatientProfile.fromJson(json);
+  }
+
+  Future<PatientProfile> updatePatientProfile({
+    String? name,
+    String? birthDate,
+    String? gender,
+  }) async {
+    final json = await _authApi.updatePatientProfile(
+      name: name,
+      birthDate: birthDate,
+      gender: gender,
+    );
+    if (json is! Map<String, dynamic>) {
+      throw const FormatException('환자 프로필 수정 응답은 객체여야 합니다.');
     }
     return PatientProfile.fromJson(json);
   }

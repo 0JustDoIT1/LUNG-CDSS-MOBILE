@@ -55,10 +55,7 @@ class HomeScreen extends ConsumerWidget {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
                   children: [
-                    HomeHeader(
-                      patient: patient,
-                      unreadNotificationCount: summary.unreadNotificationCount,
-                    ),
+                    HomeHeader(patient: patient),
                     const SizedBox(height: 32),
 
                     TodayHealthSummary(

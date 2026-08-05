@@ -1,72 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../../core/network/api_exception.dart';
+import '../../data/models/appointment_booking.dart';
+import '../providers/appointment_provider.dart';
 
-class AppointmentCreateScreen extends StatefulWidget {
+class AppointmentCreateScreen extends ConsumerStatefulWidget {
   const AppointmentCreateScreen({super.key});
 
   @override
-  State<AppointmentCreateScreen> createState() =>
+  ConsumerState<AppointmentCreateScreen> createState() =>
       _AppointmentCreateScreenState();
 }
 
 class _AppointmentCreateScreenState
-    extends State<AppointmentCreateScreen> {
-  final TextEditingController _purposeController =
-      TextEditingController();
-
-  final List<String> _departments = [
-    '호흡기내과',
-    '종양내과',
-    '영상의학과',
-  ];
-
-  final Map<String, List<String>> _doctors = {
-    '호흡기내과': [
-      '김호흡 의료진',
-      '이정민 의료진',
-    ],
-    '종양내과': [
-      '박종양 의료진',
-      '최은서 의료진',
-    ],
-    '영상의학과': [
-      '정영상 의료진',
-      '한유진 의료진',
-    ],
-  };
-
-  final List<String> _availableTimes = [
-  '09:00',
-  '09:30',
-  '10:00',
-  '10:30',
-  '11:00',
-  '11:30',
-  '13:00',
-  '13:30',
-  '14:00',
-  '14:30',
-  '15:00',
-  '15:30',
-  '16:00',
-  '16:30',
-];
-
-  String? _selectedDepartment;
-  String? _selectedDoctor;
-  DateTime? _selectedDate;
-  String? _selectedTime;
-
-  bool get _canSubmit {
-    return _selectedDepartment != null &&
-        _selectedDoctor != null &&
-        _selectedDate != null &&
-        _selectedTime != null &&
-        _purposeController.text.trim().isNotEmpty;
-  }
+    extends ConsumerState<AppointmentCreateScreen> {
+  final _purposeController = TextEditingController();
 
   @override
   void dispose() {
@@ -74,108 +26,96 @@ class _AppointmentCreateScreenState
     super.dispose();
   }
 
-  String _formatDate(DateTime date) {
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-
-    return '${date.year}.$month.$day';
-  }
-
   Future<void> _selectDate() async {
     final now = DateTime.now();
-
-    final selectedDate = await showDatePicker(
+    final selected = await showDatePicker(
       context: context,
-      initialDate: _selectedDate ?? now,
-      firstDate: now,
-      lastDate: DateTime(
-        now.year + 1,
-        now.month,
-        now.day,
-      ),
+      initialDate: now,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 1, now.month, now.day),
       helpText: '예약 날짜 선택',
       cancelText: '취소',
       confirmText: '선택',
     );
-
-    if (selectedDate == null) {
-      return;
+    if (selected != null) {
+      await ref.read(appointmentBookingProvider.notifier).selectDate(selected);
     }
-
-    setState(() {
-      _selectedDate = selectedDate;
-    });
   }
 
-  Future<void> _submitAppointment() async {
-    if (!_canSubmit) {
-      return;
-    }
-
+  Future<void> _submit() async {
+    final state = ref.read(appointmentBookingProvider);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('예약을 신청하시겠습니까?'),
-          content: Text(
-            '$_selectedDepartment\n'
-            '$_selectedDoctor\n'
-            '${_formatDate(_selectedDate!)} $_selectedTime',
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('선택한 일정으로 예약을 신청하시겠습니까?'),
+        content: Text(
+          '${state.selectedDepartment!.name}\n'
+          '${state.selectedDoctor!.name}\n'
+          '${_date(state.selectedDate!)} ${state.selectedSlot!.time}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-              child: const Text('취소'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-              child: const Text('신청'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true || !mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('예약 신청이 완료되었습니다.'),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('신청'),
+          ),
+        ],
       ),
     );
-
-    context.pop();
+    if (confirmed != true || !mounted) return;
+    final success = await ref
+        .read(appointmentBookingProvider.notifier)
+        .submit();
+    if (!mounted) return;
+    if (success) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('예약이 신청되었습니다.')));
+      context.pop();
+      return;
+    }
+    final error = ref.read(appointmentBookingProvider).lastError;
+    if (error is ApiException && error.statusCode == 409) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('선택한 시간이 마감되었습니다.'),
+          content: const Text('다른 사용자가 먼저 예약했을 수 있습니다. 다른 시간을 선택해 주세요.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('확인'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(_error(error))));
   }
 
   @override
   Widget build(BuildContext context) {
-    final doctors = _selectedDepartment == null
-        ? <String>[]
-        : _doctors[_selectedDepartment] ?? <String>[];
+    final state = ref.watch(appointmentBookingProvider);
+    final canSubmit =
+        state.selectedDepartment != null &&
+        state.selectedDoctor != null &&
+        state.selectedDate != null &&
+        state.selectedSlot?.status == 'available' &&
+        !state.isSubmitting;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('새 예약 신청'),
-      ),
+      appBar: AppBar(title: const Text('새 예약 신청')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            20,
-            20,
-            20,
-            120,
-          ),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
           children: [
-            const Text(
-              '예약 정보를 입력해주세요.',
-              style: AppTextStyles.headlineMedium,
-            ),
+            const Text('예약 정보를 입력해주세요.', style: AppTextStyles.headlineMedium),
             const SizedBox(height: 8),
             Text(
               '진료과와 의료진, 희망 일정을 선택해주세요.',
@@ -184,121 +124,123 @@ class _AppointmentCreateScreenState
               ),
             ),
             const SizedBox(height: 28),
-
-            _SectionTitle(
-              number: 1,
-              title: '진료과 선택',
-            ),
+            const _SectionTitle(number: 1, title: '진료과 선택'),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedDepartment,
-              decoration: const InputDecoration(
-                hintText: '진료과를 선택해주세요.',
-                prefixIcon: Icon(
-                  Icons.local_hospital_outlined,
-                ),
+            state.departments.when(
+              loading: () => const _LoadingBox(),
+              error: (_, _) => _RetryBox(
+                label: '진료과를 불러오지 못했습니다.',
+                onRetry: ref
+                    .read(appointmentBookingProvider.notifier)
+                    .loadDepartments,
               ),
-              items: _departments.map((department) {
-                return DropdownMenuItem(
-                  value: department,
-                  child: Text(department),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedDepartment = value;
-                  _selectedDoctor = null;
-                });
-              },
+              data: (items) => items.isEmpty
+                  ? const _MessageBox('선택 가능한 진료과가 없습니다.')
+                  : DropdownButtonFormField<AppointmentDepartment>(
+                      initialValue: state.selectedDepartment,
+                      hint: const Text('진료과를 선택해주세요.'),
+                      items: items
+                          .map(
+                            (item) => DropdownMenuItem(
+                              value: item,
+                              child: Text(item.name),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          ref
+                              .read(appointmentBookingProvider.notifier)
+                              .selectDepartment(value);
+                        }
+                      },
+                    ),
             ),
             const SizedBox(height: 24),
-
-            _SectionTitle(
-              number: 2,
-              title: '의료진 선택',
-            ),
+            const _SectionTitle(number: 2, title: '의료진 선택'),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedDoctor,
-              decoration: const InputDecoration(
-                hintText: '의료진을 선택해주세요.',
-                prefixIcon: Icon(
-                  Icons.person_outline_rounded,
+            if (state.selectedDepartment == null)
+              const _MessageBox('진료과를 먼저 선택해주세요.')
+            else
+              state.doctors.when(
+                loading: () => const _LoadingBox(),
+                error: (_, _) => _RetryBox(
+                  label: '의료진을 불러오지 못했습니다.',
+                  onRetry: () => ref
+                      .read(appointmentBookingProvider.notifier)
+                      .selectDepartment(state.selectedDepartment!),
                 ),
+                data: (items) => items.isEmpty
+                    ? const _MessageBox('선택 가능한 의료진이 없습니다.')
+                    : Column(
+                        children: items
+                            .map(
+                              (doctor) => _DoctorCard(
+                                doctor: doctor,
+                                selected: state.selectedDoctor?.id == doctor.id,
+                                onTap: () => ref
+                                    .read(appointmentBookingProvider.notifier)
+                                    .selectDoctor(doctor),
+                              ),
+                            )
+                            .toList(),
+                      ),
               ),
-              items: doctors.map((doctor) {
-                return DropdownMenuItem(
-                  value: doctor,
-                  child: Text(doctor),
-                );
-              }).toList(),
-              onChanged: _selectedDepartment == null
-                  ? null
-                  : (value) {
-                      setState(() {
-                        _selectedDoctor = value;
-                      });
-                    },
-            ),
             const SizedBox(height: 24),
-
-            _SectionTitle(
-              number: 3,
-              title: '예약 날짜',
-            ),
+            const _SectionTitle(number: 3, title: '예약 날짜'),
             const SizedBox(height: 12),
             InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: _selectDate,
+              onTap: state.selectedDoctor == null ? null : _selectDate,
               child: InputDecorator(
                 decoration: const InputDecoration(
-                  prefixIcon: Icon(
-                    Icons.calendar_month_outlined,
-                  ),
-                  suffixIcon: Icon(
-                    Icons.chevron_right_rounded,
-                  ),
+                  prefixIcon: Icon(Icons.calendar_month_outlined),
+                  suffixIcon: Icon(Icons.chevron_right_rounded),
                 ),
                 child: Text(
-                  _selectedDate == null
+                  state.selectedDate == null
                       ? '예약 날짜를 선택해주세요.'
-                      : _formatDate(_selectedDate!),
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: _selectedDate == null
-                        ? AppColors.textSecondary
-                        : AppColors.textPrimary,
-                  ),
+                      : _date(state.selectedDate!),
                 ),
               ),
             ),
             const SizedBox(height: 24),
-
-            _SectionTitle(
-              number: 4,
-              title: '예약 시간',
-            ),
+            const _SectionTitle(number: 4, title: '예약 시간'),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: _availableTimes.map((time) {
-                return ChoiceChip(
-                  label: Text(time),
-                  selected: _selectedTime == time,
-                  onSelected: (selected) {
-                    setState(() {
-                      _selectedTime = selected ? time : null;
-                    });
-                  },
-                );
-              }).toList(),
-            ),
+            if (state.selectedDate == null)
+              const _MessageBox('날짜를 먼저 선택해주세요.')
+            else
+              state.slots.when(
+                loading: () => const _LoadingBox(),
+                error: (_, _) => _RetryBox(
+                  label: '예약 시간을 불러오지 못했습니다.',
+                  onRetry: () => ref
+                      .read(appointmentBookingProvider.notifier)
+                      .selectDate(state.selectedDate!),
+                ),
+                data: (result) => result == null || result.slots.isEmpty
+                    ? const _MessageBox('선택 가능한 예약 시간이 없습니다.')
+                    : Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: result.slots.map((slot) {
+                          final available = slot.status == 'available';
+                          return ChoiceChip(
+                            label: Text(
+                              available ? slot.time : '${slot.time} 마감',
+                            ),
+                            selected:
+                                state.selectedSlot?.dateTime == slot.dateTime,
+                            onSelected: available
+                                ? (_) => ref
+                                      .read(appointmentBookingProvider.notifier)
+                                      .selectSlot(slot)
+                                : null,
+                          );
+                        }).toList(),
+                      ),
+              ),
             const SizedBox(height: 24),
-
-            _SectionTitle(
-              number: 5,
-              title: '진료 목적',
-            ),
+            const _SectionTitle(number: 5, title: '진료 목적'),
             const SizedBox(height: 12),
             TextField(
               controller: _purposeController,
@@ -306,85 +248,125 @@ class _AppointmentCreateScreenState
               maxLength: 200,
               decoration: const InputDecoration(
                 hintText: '예: 검사 결과 상담, 치료 경과 확인',
-                alignLabelWithHint: true,
+                helperText: '현재 예약 API 요청에는 포함되지 않습니다.',
               ),
-              onChanged: (_) {
-                setState(() {});
-              },
             ),
           ],
         ),
       ),
       bottomNavigationBar: SafeArea(
         top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(
-            20,
-            12,
-            20,
-            20,
-          ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(
-              top: BorderSide(
-                color: AppColors.border,
-              ),
-            ),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
           child: FilledButton(
-            onPressed:
-                _canSubmit ? _submitAppointment : null,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(
-                vertical: 15,
-              ),
-              child: Text('예약 신청하기'),
+            onPressed: canSubmit ? _submit : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              child: state.isSubmitting
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('예약 신청하기'),
             ),
           ),
         ),
       ),
     );
   }
+
+  static String _date(DateTime date) =>
+      '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+  static String _error(Object? error) {
+    if (error is ApiException) {
+      if (error.statusCode == 400) return '예약 정보를 확인해 주세요.';
+      if (error.statusCode == 403) return '예약을 신청할 권한이 없습니다.';
+      if (error.code == 'TIMEOUT') return '요청 시간이 초과되었습니다.';
+      if (error.code == 'CONNECTION_ERROR') return '네트워크 연결을 확인해 주세요.';
+    }
+    return '예약을 신청하지 못했습니다.';
+  }
+}
+
+class _DoctorCard extends StatelessWidget {
+  const _DoctorCard({
+    required this.doctor,
+    required this.selected,
+    required this.onTap,
+  });
+  final AppointmentDoctor doctor;
+  final bool selected;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Card(
+    child: ListTile(
+      onTap: onTap,
+      selected: selected,
+      leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+      title: Row(
+        children: [
+          Text(doctor.name),
+          if (doctor.isAssigned) ...[
+            const SizedBox(width: 8),
+            const Chip(label: Text('담당 의료진')),
+          ],
+        ],
+      ),
+      subtitle: Text([doctor.department, ...doctor.specialtyTags].join(' · ')),
+      trailing: selected
+          ? const Icon(Icons.check_circle, color: AppColors.primary)
+          : null,
+    ),
+  );
+}
+
+class _LoadingBox extends StatelessWidget {
+  const _LoadingBox();
+  @override
+  Widget build(BuildContext context) => const SizedBox(
+    height: 64,
+    child: Center(child: CircularProgressIndicator()),
+  );
+}
+
+class _MessageBox extends StatelessWidget {
+  const _MessageBox(this.message);
+  final String message;
+  @override
+  Widget build(BuildContext context) =>
+      Padding(padding: const EdgeInsets.all(16), child: Text(message));
+}
+
+class _RetryBox extends StatelessWidget {
+  const _RetryBox({required this.label, required this.onRetry});
+  final String label;
+  final VoidCallback onRetry;
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(child: Text(label)),
+      TextButton(onPressed: onRetry, child: const Text('다시 시도')),
+    ],
+  );
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({
-    required this.number,
-    required this.title,
-  });
-
+  const _SectionTitle({required this.number, required this.title});
   final int number;
   final String title;
-
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 28,
-          height: 28,
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            color: AppColors.primary,
-            shape: BoxShape.circle,
-          ),
-          child: Text(
-            '$number',
-            style: AppTextStyles.bodySmall.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: AppTextStyles.bodyMedium.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Row(
+    children: [
+      CircleAvatar(
+        radius: 14,
+        backgroundColor: AppColors.primary,
+        child: Text('$number', style: const TextStyle(color: Colors.white)),
+      ),
+      const SizedBox(width: 10),
+      Text(
+        title,
+        style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+      ),
+    ],
+  );
 }

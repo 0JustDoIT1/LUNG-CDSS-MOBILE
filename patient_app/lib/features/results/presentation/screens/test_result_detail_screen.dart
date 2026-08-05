@@ -3,274 +3,94 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
-import '../../../../data/models/test_result.dart';
+import '../../../../core/network/api_exception.dart';
+import '../../../../core/widgets/app_error_view.dart';
+import '../../data/models/patient_result.dart';
 import '../providers/test_result_provider.dart';
 
 class TestResultDetailScreen extends ConsumerWidget {
-  const TestResultDetailScreen({
-    required this.resultId,
-    super.key,
-  });
+  const TestResultDetailScreen({required this.resultId, super.key});
 
   final String resultId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final resultState = ref.watch(
-      testResultDetailProvider(resultId),
-    );
+    final resultState = ref.watch(testResultDetailProvider(resultId));
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('검사결과 상세'),
-      ),
+      appBar: AppBar(title: const Text('검사 결과')),
       body: SafeArea(
         child: resultState.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(),
+          loading: () => const _DetailSkeleton(),
+          error: (error, stackTrace) => AppErrorView(
+            title: _errorTitle(error),
+            message: _errorMessage(error),
+            onRetry: () => ref.invalidate(testResultDetailProvider(resultId)),
           ),
-          error: (error, stackTrace) => _ErrorView(
-            onRetry: () {
-              ref.invalidate(
-                testResultDetailProvider(resultId),
-              );
-            },
+          data: (result) => ListView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+            children: [
+              _FinalResultCard(result: result),
+              const SizedBox(height: 20),
+              _BasicInformationCard(result: result),
+              const SizedBox(height: 20),
+              _GenePredictionCard(predictions: result.genePredictions),
+              const SizedBox(height: 20),
+              const _NoticeCard(),
+            ],
           ),
-          data: (result) {
-            if (result == null) {
-              return const _NotFoundView();
-            }
-
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(
-                20,
-                20,
-                20,
-                40,
-              ),
-              children: [
-                _ResultHeader(result: result),
-                const SizedBox(height: 24),
-                _SubtypeSection(result: result),
-                const SizedBox(height: 24),
-                _GenePredictionSection(result: result),
-                const SizedBox(height: 24),
-                _DoctorOpinionSection(result: result),
-                const SizedBox(height: 24),
-                const _NoticeSection(),
-              ],
-            );
-          },
         ),
       ),
     );
   }
-}
 
-class _ResultHeader extends StatelessWidget {
-  const _ResultHeader({
-    required this.result,
-  });
-
-  final TestResult result;
-
-  String _formatDate(DateTime date) {
-    return '${date.year}.${date.month.toString().padLeft(2, '0')}.'
-        '${date.day.toString().padLeft(2, '0')}';
+  static String _errorTitle(Object error) {
+    if (error is ApiException && error.statusCode == 403) {
+      return '검사결과를 조회할 권한이 없습니다.';
+    }
+    if (error is ApiException && error.statusCode == 404) {
+      return '공개된 검사결과를 찾을 수 없습니다.';
+    }
+    return '검사 결과를 불러오지 못했습니다.';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.border,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(
-                alpha: 0.1,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(
-              Icons.biotech_outlined,
-              color: AppColors.primary,
-              size: 30,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  result.testName,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _formatDate(result.testDate),
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(
-                      alpha: 0.1,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    result.resultStatus,
-                    style: AppTextStyles.bodySmall.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  static String _errorMessage(Object error) {
+    if (error is ApiException) {
+      if (error.statusCode == 401) return '인증 정보가 만료됐거나 유효하지 않습니다.';
+      if (error.statusCode == 403) return '현재 계정으로 이 검사결과를 확인할 수 없습니다.';
+      if (error.statusCode == 404) {
+        return '결과가 아직 확정되지 않았거나 공개 상태가 아닐 수 있습니다.';
+      }
+      if (error.code == 'TIMEOUT') return '서버 응답 시간이 초과되었습니다.';
+      if (error.code == 'CONNECTION_ERROR') return '네트워크 연결을 확인해주세요.';
+    }
+    if (error is FormatException) return '검사 결과 형식을 확인할 수 없습니다.';
+    return '잠시 후 다시 시도해주세요.';
   }
 }
 
-class _SubtypeSection extends StatelessWidget {
-  const _SubtypeSection({
-    required this.result,
-  });
-
-  final TestResult result;
+class _FinalResultCard extends StatelessWidget {
+  const _FinalResultCard({required this.result});
+  final PatientResult result;
 
   @override
   Widget build(BuildContext context) {
     return _SectionCard(
-      title: '폐암 아형 분류',
+      title: '최종 검사 결과',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '예측 결과',
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            result.cancerSubtype,
+            patientResultDetailLabel(result.finalSubtype),
             style: AppTextStyles.headlineMedium.copyWith(
               color: AppColors.primary,
+              height: 1.4,
             ),
-          ),
-          const SizedBox(height: 20),
-          _ProbabilityRow(
-            label: 'LUAD',
-            value: result.luadProbability,
-          ),
-          const SizedBox(height: 16),
-          _ProbabilityRow(
-            label: 'LUSC',
-            value: result.luscProbability,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GenePredictionSection extends StatelessWidget {
-  const _GenePredictionSection({
-    required this.result,
-  });
-
-  final TestResult result;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: '유전자 변이 가능성',
-      child: Column(
-        children: result.genePredictions.map((gene) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: _ProbabilityRow(
-              label: gene.geneName,
-              value: gene.probability,
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-class _DoctorOpinionSection extends StatelessWidget {
-  const _DoctorOpinionSection({
-    required this.result,
-  });
-
-  final TestResult result;
-
-  String _formatDateTime(DateTime dateTime) {
-    final String month =
-        dateTime.month.toString().padLeft(2, '0');
-    final String day =
-        dateTime.day.toString().padLeft(2, '0');
-    final String hour =
-        dateTime.hour.toString().padLeft(2, '0');
-    final String minute =
-        dateTime.minute.toString().padLeft(2, '0');
-
-    return '${dateTime.year}.$month.$day $hour:$minute';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: '의료진 소견',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            result.doctorOpinion,
-            style: AppTextStyles.bodyMedium.copyWith(
-              height: 1.6,
-            ),
-          ),
-          const SizedBox(height: 18),
-          const Divider(
-            color: AppColors.border,
           ),
           const SizedBox(height: 12),
           Text(
-            '${result.reviewedBy} 의료진',
-            style: AppTextStyles.bodySmall.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _formatDateTime(result.reviewedAt),
-            style: AppTextStyles.bodySmall.copyWith(
+            '담당 의료진이 확정한 검사 결과입니다.',
+            style: AppTextStyles.bodyMedium.copyWith(
               color: AppColors.textSecondary,
             ),
           ),
@@ -280,49 +100,118 @@ class _DoctorOpinionSection extends StatelessWidget {
   }
 }
 
-class _NoticeSection extends StatelessWidget {
-  const _NoticeSection();
+class _BasicInformationCard extends StatelessWidget {
+  const _BasicInformationCard({required this.result});
+  final PatientResult result;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(
-          alpha: 0.08,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return _SectionCard(
+      title: '기본 정보',
+      child: Column(
         children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            color: AppColors.primary,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'AI 분석 결과와 유전자 변이 가능성은 참고 정보이며, '
-              '확진 검사와 담당 의료진의 판단을 대체하지 않습니다.',
-              style: AppTextStyles.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.5,
-              ),
-            ),
-          ),
+          _InformationRow(label: '검체번호', value: result.specimenId),
+          if (result.confirmedAt != null) ...[
+            const SizedBox(height: 14),
+            _InformationRow(label: '확정일', value: _format(result.confirmedAt!)),
+          ],
+          if (result.releasedAt != null) ...[
+            const SizedBox(height: 14),
+            _InformationRow(label: '공개일', value: _format(result.releasedAt!)),
+          ],
         ],
       ),
+    );
+  }
+
+  String _format(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '${value.year}.$month.$day $hour:$minute';
+  }
+}
+
+class _GenePredictionCard extends StatelessWidget {
+  const _GenePredictionCard({required this.predictions});
+  final List<GenePrediction> predictions;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      title: '유전자 변이 확률',
+      child: predictions.isEmpty
+          ? Text('유전자 예측 정보가 없습니다.', style: AppTextStyles.bodyMedium)
+          : Column(
+              children: predictions
+                  .map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.biotech_outlined,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              item.geneName.trim().isEmpty
+                                  ? '유전자 정보 확인 필요'
+                                  : item.geneName,
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            item.likelihood == null
+                                ? '확률 정보 없음'
+                                : '${(item.likelihood! * 100).round()}%',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.primaryDark,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+    );
+  }
+}
+
+class _InformationRow extends StatelessWidget {
+  const _InformationRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 84,
+          child: Text(
+            label,
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        Expanded(child: Text(value, style: AppTextStyles.bodyMedium)),
+      ],
     );
   }
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.child,
-  });
-
+  const _SectionCard({required this.title, required this.child});
   final String title;
   final Widget child;
 
@@ -333,17 +222,12 @@ class _SectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: AppTextStyles.headlineMedium,
-          ),
+          Text(title, style: AppTextStyles.headlineMedium),
           const SizedBox(height: 18),
           child,
         ],
@@ -352,105 +236,45 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-class _ProbabilityRow extends StatelessWidget {
-  const _ProbabilityRow({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final double value;
+class _NoticeCard extends StatelessWidget {
+  const _NoticeCard();
 
   @override
   Widget build(BuildContext context) {
-    final int percent = (value * 100).round();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            Text(
-              '$percent%',
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: LinearProgressIndicator(
-            value: value,
-            minHeight: 8,
-            backgroundColor: AppColors.primary.withValues(
-              alpha: 0.12,
-            ),
-            valueColor: const AlwaysStoppedAnimation<Color>(
-              AppColors.primary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _NotFoundView extends StatelessWidget {
-  const _NotFoundView();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        '검사결과를 찾을 수 없습니다.',
-        style: AppTextStyles.bodyMedium,
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded, color: AppColors.primary),
+          SizedBox(width: 12),
+          Expanded(child: Text('상세한 해석과 치료 계획은 담당 의료진과 상담해 주세요.')),
+        ],
       ),
     );
   }
 }
 
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({
-    required this.onRetry,
-  });
-
-  final VoidCallback onRetry;
+class _DetailSkeleton extends StatelessWidget {
+  const _DetailSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 52,
-              color: AppColors.danger,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '검사 상세정보를 불러오지 못했습니다.',
-              style: AppTextStyles.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: onRetry,
-              child: const Text('다시 시도'),
-            ),
-          ],
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: List.generate(
+        3,
+        (index) => Container(
+          height: index == 0 ? 150 : 190,
+          margin: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE7F0F6),
+            borderRadius: BorderRadius.circular(20),
+          ),
         ),
       ),
     );

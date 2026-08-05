@@ -15,3 +15,40 @@ final patientProfileProvider = FutureProvider<api_model.PatientProfile>((
   final repository = ref.watch(authRepositoryProvider);
   return repository.getPatientProfile();
 });
+
+final patientProfileUpdateProvider =
+    AsyncNotifierProvider<
+      PatientProfileUpdateNotifier,
+      api_model.PatientProfile?
+    >(PatientProfileUpdateNotifier.new);
+
+class PatientProfileUpdateNotifier
+    extends AsyncNotifier<api_model.PatientProfile?> {
+  @override
+  Future<api_model.PatientProfile?> build() async => null;
+
+  Future<bool> saveProfile({
+    String? name,
+    String? birthDate,
+    String? gender,
+  }) async {
+    if (state.isLoading) return false;
+
+    state = const AsyncLoading();
+    final result = await AsyncValue.guard(() async {
+      final repository = ref.read(authRepositoryProvider);
+      return repository.updatePatientProfile(
+        name: name,
+        birthDate: birthDate,
+        gender: gender,
+      );
+    });
+    state = result;
+
+    if (result.hasValue) {
+      ref.invalidate(patientProfileProvider);
+      return true;
+    }
+    return false;
+  }
+}

@@ -1,16 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../data/models/test_result.dart';
-import '../../../../data/repositories/mock_test_result_repository.dart';
-import '../../../../data/repositories/test_result_repository.dart';
 import '../../../auth/presentation/providers/auth_dependency_providers.dart';
-import '../../data/models/patient_result_summary.dart';
+import '../../data/models/patient_result.dart';
 import '../../data/patient_results_api.dart';
 import '../../data/patient_results_repository.dart';
-
-final testResultRepositoryProvider = Provider<TestResultRepository>((ref) {
-  return MockTestResultRepository();
-});
 
 final patientResultsApiProvider = Provider<PatientResultsApi>((ref) {
   final apiClient = ref.watch(apiClientProvider);
@@ -26,19 +19,16 @@ final patientResultsRepositoryProvider = Provider<PatientResultsRepository>((
   return PatientResultsRepository(patientResultsApi: patientResultsApi);
 });
 
-final testResultsProvider = FutureProvider<List<PatientResultSummary>>((
-  ref,
-) async {
+final testResultsProvider = FutureProvider<List<PatientResult>>((ref) async {
   final repository = ref.read(patientResultsRepositoryProvider);
 
-  return repository.getMyResults();
+  return repository.fetchMyResults();
 });
 
-final testResultDetailProvider = FutureProvider.family<TestResult?, String>((
+final testResultDetailProvider = FutureProvider.family<PatientResult, String>((
   ref,
-  id,
+  caseId,
 ) async {
-  final repository = ref.read(testResultRepositoryProvider);
-
-  return repository.getTestResultById(id);
+  final repository = ref.read(patientResultsRepositoryProvider);
+  return repository.fetchMyResultDetail(caseId);
 });
