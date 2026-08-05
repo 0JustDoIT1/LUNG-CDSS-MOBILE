@@ -8,6 +8,8 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../convenience/data/notification_deep_link_coordinator.dart';
+import '../../../convenience/presentation/providers/notification_deep_link_provider.dart';
 import '../../data/models/hospital.dart';
 import '../../data/models/patient_gender.dart';
 import '../providers/auth_dependency_providers.dart';
@@ -218,7 +220,12 @@ class _PhoneVerificationScreenState
     });
 
     if (isSuccess) {
-      context.go(RouteNames.home);
+      final navigationResult = ref
+          .read(notificationDeepLinkCoordinatorProvider)
+          .activateAndHandlePending();
+      if (navigationResult != NotificationNavigationResult.navigated) {
+        context.go(RouteNames.home);
+      }
       return;
     }
 

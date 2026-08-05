@@ -6,6 +6,8 @@ import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../convenience/data/notification_deep_link_coordinator.dart';
+import '../../../convenience/presentation/providers/notification_deep_link_provider.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -53,7 +55,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     if (authState.isLoggedIn && !authState.isNewUser) {
-      context.go(RouteNames.home);
+      final navigationResult = ref
+          .read(notificationDeepLinkCoordinatorProvider)
+          .activateAndHandlePending();
+      if (navigationResult != NotificationNavigationResult.navigated) {
+        context.go(RouteNames.home);
+      }
       return;
     }
 
