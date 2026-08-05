@@ -109,7 +109,14 @@ class AuthRepository {
 
   Future<bool> hasAccessToken() async {
     final accessToken = await _tokenStorage.readAccessToken();
-    return accessToken != null && accessToken.isNotEmpty;
+    final refreshToken = await _tokenStorage.readRefreshToken();
+    final hasAccess = accessToken != null && accessToken.isNotEmpty;
+    final hasRefresh = refreshToken != null && refreshToken.isNotEmpty;
+    if (hasAccess != hasRefresh) {
+      await _tokenStorage.clearAuthTokens();
+      return false;
+    }
+    return hasAccess && hasRefresh;
   }
 
   Future<void> logout() async {

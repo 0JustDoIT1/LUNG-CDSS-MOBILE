@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/convenience/presentation/providers/notification_deep_link_provider.dart';
+import '../features/auth/presentation/providers/auth_dependency_providers.dart';
 import 'routes/app_router.dart';
+import 'routes/route_names.dart';
 import 'theme/app_theme.dart';
 
 class SumItApp extends ConsumerStatefulWidget {
@@ -14,12 +18,24 @@ class SumItApp extends ConsumerStatefulWidget {
 }
 
 class _SumItAppState extends ConsumerState<SumItApp> {
+  StreamSubscription<void>? _sessionExpirationSubscription;
+
   @override
   void initState() {
     super.initState();
+    _sessionExpirationSubscription = ref
+        .read(authSessionCoordinatorProvider)
+        .onExpired
+        .listen((_) => appRouter.go(RouteNames.login));
     Future<void>.microtask(() {
       return ref.read(notificationDeepLinkCoordinatorProvider).start();
     });
+  }
+
+  @override
+  void dispose() {
+    unawaited(_sessionExpirationSubscription?.cancel());
+    super.dispose();
   }
 
   @override

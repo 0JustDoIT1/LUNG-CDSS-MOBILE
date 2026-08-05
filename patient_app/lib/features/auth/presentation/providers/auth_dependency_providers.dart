@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/token_storage.dart';
+import '../../../../core/auth/auth_session_coordinator.dart';
 import '../../../../core/network/api_client.dart';
 import '../../data/auth_api.dart';
 import '../../data/auth_repository.dart';
@@ -18,10 +19,20 @@ final tokenStorageProvider = Provider<TokenStorage>((ref) {
   return TokenStorage();
 });
 
+final authSessionCoordinatorProvider = Provider<AuthSessionCoordinator>((ref) {
+  final coordinator = AuthSessionCoordinator();
+  ref.onDispose(() => unawaited(coordinator.dispose()));
+  return coordinator;
+});
+
 final apiClientProvider = Provider<ApiClient>((ref) {
   final tokenStorage = ref.watch(tokenStorageProvider);
+  final sessionCoordinator = ref.watch(authSessionCoordinatorProvider);
 
-  return ApiClient(tokenStorage: tokenStorage);
+  return ApiClient(
+    tokenStorage: tokenStorage,
+    sessionCoordinator: sessionCoordinator,
+  );
 });
 
 final authApiProvider = Provider<AuthApi>((ref) {

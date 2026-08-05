@@ -47,16 +47,36 @@ void main() {
       expect(container.read(authProvider).requireValue.isLoggedIn, isFalse);
     },
   );
+
+  test('logout still runs server and Google cleanup when FCM throws', () async {
+    final events = <String>[];
+    final container = _container(events: events, unregisterThrows: true);
+    addTearDown(container.dispose);
+    await container.read(authProvider.future);
+
+    await expectLater(
+      container.read(authProvider.notifier).signOut(),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(
+      events,
+      containsAllInOrder(['device-unregister', 'logout', 'google-sign-out']),
+    );
+    expect(container.read(authProvider).requireValue.isLoggedIn, isFalse);
+  });
 }
 
 ProviderContainer _container({
   required List<String> events,
   bool unregisterResult = true,
+  bool unregisterThrows = false,
 }) {
   final repository = _FakeAuthRepository(events);
   final deviceService = _FakeDeviceTokenService(
     events,
     unregisterResult: unregisterResult,
+    unregisterThrows: unregisterThrows,
   );
   return ProviderContainer(
     overrides: [
@@ -107,16 +127,20 @@ class _FakeGoogleService extends GoogleSignInService {
 }
 
 class _FakeDeviceTokenService extends DeviceTokenService {
-  _FakeDeviceTokenService(this.events, {required this.unregisterResult})
-    : super(
-        DeviceTokenRepository(DeviceTokenApi(ApiClient(dio: Dio()))),
-        DeviceIdentityStorage(),
-        TokenStorage(),
-        _EmptyTokenSource(),
-        null,
-      );
+  _FakeDeviceTokenService(
+    this.events, {
+    required this.unregisterResult,
+    this.unregisterThrows = false,
+  }) : super(
+         DeviceTokenRepository(DeviceTokenApi(ApiClient(dio: Dio()))),
+         DeviceIdentityStorage(),
+         TokenStorage(),
+         _EmptyTokenSource(),
+         null,
+       );
   final List<String> events;
   final bool unregisterResult;
+  final bool unregisterThrows;
 
   @override
   void start() {}
@@ -130,6 +154,7 @@ class _FakeDeviceTokenService extends DeviceTokenService {
   @override
   Future<bool> tryUnregisterCurrentDevice() async {
     events.add('device-unregister');
+    if (unregisterThrows) throw StateError('FCM unregister failed');
     return unregisterResult;
   }
 }

@@ -15,14 +15,22 @@ final authProvider = AsyncNotifierProvider<AuthNotifier, AuthState>(
 );
 
 class AuthNotifier extends AsyncNotifier<AuthState> {
+  StreamSubscription<void>? _sessionExpirationSubscription;
+
   @override
   Future<AuthState> build() async {
     final repository = ref.read(authRepositoryProvider);
     final deviceTokenService = ref.read(deviceTokenServiceProvider);
+    final sessionCoordinator = ref.read(authSessionCoordinatorProvider);
+    _sessionExpirationSubscription ??= sessionCoordinator.onExpired.listen((_) {
+      state = const AsyncData(AuthState());
+    });
+    ref.onDispose(() => _sessionExpirationSubscription?.cancel());
     deviceTokenService.start();
     final hasAccessToken = await repository.hasAccessToken();
 
     if (hasAccessToken) {
+      sessionCoordinator.markAuthenticated();
       unawaited(deviceTokenService.tryRegisterCurrentDevice());
       return const AuthState(
         isLoggedIn: true,
@@ -54,6 +62,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       );
 
       if (result.isExistingMember) {
+        ref.read(authSessionCoordinatorProvider).markAuthenticated();
         final deviceTokenService = ref.read(deviceTokenServiceProvider);
         deviceTokenService.start();
         unawaited(deviceTokenService.tryRegisterCurrentDevice());
@@ -99,6 +108,8 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
         gender: gender,
       );
 
+      ref.read(authSessionCoordinatorProvider).markAuthenticated();
+
       final deviceTokenService = ref.read(deviceTokenServiceProvider);
       deviceTokenService.start();
       unawaited(deviceTokenService.tryRegisterCurrentDevice());
@@ -141,12 +152,21 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     final repository = ref.read(authRepositoryProvider);
     final googleSignInService = ref.read(googleSignInServiceProvider);
     final deviceTokenService = ref.read(deviceTokenServiceProvider);
+    final sessionCoordinator = ref.read(authSessionCoordinatorProvider);
+    sessionCoordinator.beginLogout();
 
     try {
-      await deviceTokenService.tryUnregisterCurrentDevice();
-      await repository.logout();
-      await googleSignInService.signOut();
+      try {
+        await deviceTokenService.tryUnregisterCurrentDevice();
+      } finally {
+        try {
+          await repository.logout();
+        } finally {
+          await googleSignInService.signOut();
+        }
+      }
     } finally {
+      sessionCoordinator.finishLogout();
       state = const AsyncData(AuthState());
     }
   }

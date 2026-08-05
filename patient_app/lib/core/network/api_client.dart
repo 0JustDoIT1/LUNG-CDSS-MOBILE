@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../auth/auth_session_coordinator.dart';
 import '../auth/token_storage.dart';
 import 'api_config.dart';
 import 'api_exception.dart';
@@ -8,30 +9,38 @@ import 'auth_interceptor.dart';
 class ApiClient {
   ApiClient({
     Dio? dio,
+    Dio? refreshDio,
     TokenStorage? tokenStorage,
-  })  : _tokenStorage = tokenStorage ?? TokenStorage(),
-        _dio = dio ??
-            Dio(
-              BaseOptions(
-                baseUrl: ApiConfig.baseUrl,
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 15),
-                sendTimeout: const Duration(seconds: 15),
-                headers: const {
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json',
-                },
-              ),
-            ) {
+    AuthSessionCoordinator? sessionCoordinator,
+  }) : _tokenStorage = tokenStorage ?? TokenStorage(),
+       _sessionCoordinator = sessionCoordinator ?? AuthSessionCoordinator(),
+       _dio =
+           dio ??
+           Dio(
+             BaseOptions(
+               baseUrl: ApiConfig.baseUrl,
+               connectTimeout: const Duration(seconds: 10),
+               receiveTimeout: const Duration(seconds: 15),
+               sendTimeout: const Duration(seconds: 15),
+               headers: const {
+                 'Content-Type': 'application/json',
+                 'Accept': 'application/json',
+               },
+             ),
+           ) {
     _dio.interceptors.add(
       AuthInterceptor(
-        tokenStorage: _tokenStorage,
+        _tokenStorage,
+        _dio,
+        refreshDio ?? Dio(_dio.options.copyWith()),
+        _sessionCoordinator,
       ),
     );
   }
 
   final Dio _dio;
   final TokenStorage _tokenStorage;
+  final AuthSessionCoordinator _sessionCoordinator;
 
   Dio get dio => _dio;
 
@@ -137,15 +146,15 @@ class ApiClient {
         return ApiException(
           statusCode: statusCode,
           code: errorData['code']?.toString(),
-          message:
-              errorData['message']?.toString() ?? '서버 요청 중 오류가 발생했습니다.',
+          message: errorData['message']?.toString() ?? '서버 요청 중 오류가 발생했습니다.',
           details: errorData['details'],
         );
       }
 
       return ApiException(
         statusCode: statusCode,
-        message: responseData['message']?.toString() ??
+        message:
+            responseData['message']?.toString() ??
             responseData['detail']?.toString() ??
             '서버 요청 중 오류가 발생했습니다.',
         details: responseData,
@@ -155,10 +164,7 @@ class ApiClient {
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.sendTimeout ||
         error.type == DioExceptionType.receiveTimeout) {
-      return const ApiException(
-        message: '서버 연결 시간이 초과되었습니다.',
-        code: 'TIMEOUT',
-      );
+      return const ApiException(message: '서버 연결 시간이 초과되었습니다.', code: 'TIMEOUT');
     }
 
     if (error.type == DioExceptionType.connectionError) {
