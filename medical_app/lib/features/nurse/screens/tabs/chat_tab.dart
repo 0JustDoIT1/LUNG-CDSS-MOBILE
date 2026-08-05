@@ -5,6 +5,7 @@ import '../../../../core/api/auth_api.dart';
 import '../../../../core/api/communication_api.dart' as api;
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/chat/chat_room_screen.dart';
+import '../../../../core/chat/new_chat_screen.dart';
 
 /// 탭 4: 간호사 채팅 목록. 실제 API(GET /api/communication/threads/) 연동됨.
 /// 채팅방 안 메시지 조회/전송도 실제 API+WS 연동됨.
@@ -50,8 +51,26 @@ class _NurseChatTabState extends State<NurseChatTab> {
     }
   }
 
+  Future<void> _startNewChat() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NewChatScreen()),
+    );
+    _load(); // 새 대화가 생겼을 수 있으니 목록 갱신
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      body: _buildBody(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _startNewChat,
+        tooltip: '새 대화 시작',
+        child: const Icon(Icons.add_comment_outlined),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }

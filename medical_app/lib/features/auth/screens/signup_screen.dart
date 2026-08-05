@@ -325,7 +325,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 _Dropdown<String>(
                   value: _nurseDept,
                   hintText: '부서를 선택하세요.',
-                  items: const ['호흡기내과 병동'],
+                  // 의사 진료과("호흡기내과")와 값이 같아야 채팅 상대 목록(같은 과) 매칭이 됨.
+                  items: const ['호흡기내과'],
                   labelBuilder: (v) => v,
                   onChanged: (v) => setState(() => _nurseDept = v),
                 ),

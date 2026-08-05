@@ -84,6 +84,57 @@ Future<List<ChatThread>> fetchChatThreads(String accessToken) => _fetchList(
       ChatThread.fromJson,
     );
 
+/// GET /api/communication/threads/counterparts/ 항목 하나 — 대화 시작 가능한 상대(같은 과).
+class ChatCounterpart {
+  final String id;
+  final String name;
+
+  ChatCounterpart({required this.id, required this.name});
+
+  factory ChatCounterpart.fromJson(Map<String, dynamic> json) {
+    return ChatCounterpart(
+      id: json['id'] as String,
+      name: json['name'] as String? ?? '',
+    );
+  }
+}
+
+/// GET /api/communication/threads/counterparts/ — 대화 시작 가능한 상대 목록(같은 과).
+Future<List<ChatCounterpart>> fetchChatCounterparts(String accessToken) => _fetchList(
+      '$apiBaseUrl/api/communication/threads/counterparts/',
+      accessToken,
+      ChatCounterpart.fromJson,
+    );
+
+/// POST /api/communication/threads/start/ — 새 대화 시작(이미 스레드가 있으면 기존 것을 그대로 돌려줌).
+Future<ChatThread> startChatThread({
+  required String userId,
+  String? caseId,
+  required String accessToken,
+}) async {
+  final uri = Uri.parse('$apiBaseUrl/api/communication/threads/start/');
+  final body = <String, dynamic>{'user_id': userId};
+  if (caseId != null) body['case_id'] = caseId;
+
+  http.Response response;
+  try {
+    response = await http.post(
+      uri,
+      headers: {'Authorization': 'Bearer $accessToken', 'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+  } catch (_) {
+    throw ApiException('서버에 연결할 수 없어요. 네트워크 상태를 확인해주세요.');
+  }
+
+  if (response.statusCode != 200 && response.statusCode != 201) {
+    throw ApiException('대화를 시작하지 못했어요. (${response.statusCode})');
+  }
+
+  final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+  return ChatThread.fromJson(json);
+}
+
 /// 채팅 메시지 한 건. REST 히스토리 응답과 WS로 오는 메시지가 동일한 구조(MessageSerializer 그대로).
 class ChatMessage {
   final String id;
