@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:patient_app/core/auth/token_storage.dart';
@@ -133,6 +133,32 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(router.routeInformationProvider.value.uri.path, '/results/case-id');
   });
+
+  testWidgets(
+    'reuses the existing shell when opening a result from a root notification',
+    (tester) async {
+      final router = _shellRouter();
+      addTearDown(router.dispose);
+      final coordinator = _coordinator(router: router);
+
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      router.push('/notifications');
+      await tester.pumpAndSettle();
+
+      expect(
+        coordinator.handleInAppDeepLink('/results/case-id'),
+        NotificationNavigationResult.navigated,
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        router.routeInformationProvider.value.uri.path,
+        '/results/case-id',
+      );
+    },
+  );
 }
 
 NotificationDeepLinkCoordinator _coordinator({
@@ -154,6 +180,28 @@ GoRouter _router() {
       GoRoute(path: '/home', builder: (_, _) => const SizedBox()),
       GoRoute(path: '/results/:id', builder: (_, _) => const SizedBox()),
       GoRoute(path: '/appointments/:id', builder: (_, _) => const SizedBox()),
+      GoRoute(path: '/medication', builder: (_, _) => const SizedBox()),
+      GoRoute(path: '/symptom-records', builder: (_, _) => const SizedBox()),
+    ],
+  );
+}
+
+GoRouter _shellRouter() {
+  return GoRouter(
+    initialLocation: '/home',
+    routes: [
+      ShellRoute(
+        builder: (_, _, child) => child,
+        routes: [
+          GoRoute(path: '/home', builder: (_, _) => const SizedBox()),
+          GoRoute(path: '/results/:id', builder: (_, _) => const SizedBox()),
+          GoRoute(
+            path: '/appointments/:id',
+            builder: (_, _) => const SizedBox(),
+          ),
+        ],
+      ),
+      GoRoute(path: '/notifications', builder: (_, _) => const SizedBox()),
       GoRoute(path: '/medication', builder: (_, _) => const SizedBox()),
       GoRoute(path: '/symptom-records', builder: (_, _) => const SizedBox()),
     ],

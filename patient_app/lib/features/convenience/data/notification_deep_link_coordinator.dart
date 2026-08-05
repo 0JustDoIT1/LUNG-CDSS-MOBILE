@@ -108,7 +108,10 @@ class NotificationDeepLinkCoordinator {
         _navigationInProgressLocation == location) {
       return NotificationNavigationResult.duplicate;
     }
-    if (replace) {
+    if (replace || _isShellDestination(destination)) {
+      // Pushing a second location that contains the same ShellRoute keeps the
+      // existing shell in the root stack and mounts its Navigator key twice.
+      // Switching locations keeps one shell instance and preserves its tabs.
       _router.go(location);
     } else {
       _navigationInProgressLocation = location;
@@ -124,6 +127,11 @@ class NotificationDeepLinkCoordinator {
       );
     }
     return NotificationNavigationResult.navigated;
+  }
+
+  bool _isShellDestination(NotificationDestination destination) {
+    return destination.type == NotificationDestinationType.result ||
+        destination.type == NotificationDestinationType.appointment;
   }
 
   void _clearNavigationInProgress(String location) {
