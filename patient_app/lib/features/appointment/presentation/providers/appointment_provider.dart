@@ -94,3 +94,30 @@ final myAppointmentsProvider = FutureProvider<List<PatientAppointment>>((
   final repository = ref.read(myAppointmentRepositoryProvider);
   return repository.getMyAppointments();
 });
+
+final appointmentCancelProvider =
+    NotifierProvider<AppointmentCancelNotifier, Set<String>>(
+      AppointmentCancelNotifier.new,
+    );
+
+class AppointmentCancelNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => <String>{};
+
+  Future<void> cancelAppointment(String appointmentId) async {
+    if (state.contains(appointmentId)) {
+      return;
+    }
+
+    state = <String>{...state, appointmentId};
+
+    try {
+      final repository = ref.read(myAppointmentRepositoryProvider);
+      await repository.cancelAppointment(appointmentId);
+      ref.invalidate(myAppointmentsProvider);
+      await ref.read(myAppointmentsProvider.future);
+    } finally {
+      state = <String>{...state}..remove(appointmentId);
+    }
+  }
+}

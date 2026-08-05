@@ -16,6 +16,7 @@ class AppointmentListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appointmentState = ref.watch(myAppointmentsProvider);
+    final cancellingAppointmentIds = ref.watch(appointmentCancelProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('예약')),
@@ -45,7 +46,15 @@ class AppointmentListScreen extends ConsumerWidget {
                 itemCount: appointments.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 14),
                 itemBuilder: (context, index) {
-                  return _AppointmentCard(appointment: appointments[index]);
+                  final appointment = appointments[index];
+                  return _AppointmentCard(
+                    appointment: appointment,
+                    isCancelling: cancellingAppointmentIds.contains(
+                      appointment.id,
+                    ),
+                    onCancel: () =>
+                        _confirmAndCancel(context, ref, appointment.id),
+                  );
                 },
               ),
             );
@@ -75,12 +84,80 @@ class AppointmentListScreen extends ConsumerWidget {
     }
     return '예약 정보를 불러오지 못했습니다.';
   }
+
+  static Future<void> _confirmAndCancel(
+    BuildContext context,
+    WidgetRef ref,
+    String appointmentId,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('예약을 취소하시겠습니까?'),
+        content: const Text('취소한 예약은 되돌릴 수 없습니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('아니요'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('예약 취소'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+
+    try {
+      await ref
+          .read(appointmentCancelProvider.notifier)
+          .cancelAppointment(appointmentId);
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_cancelErrorMessage(error))));
+    }
+  }
+
+  static String _cancelErrorMessage(Object error) {
+    if (error is ApiException) {
+      if (error.statusCode == 401) {
+        return '인증 정보가 만료됐거나 유효하지 않습니다.';
+      }
+      if (error.statusCode == 403) {
+        return '예약을 취소할 권한이 없습니다.';
+      }
+      if (error.statusCode == 404) {
+        return '해당 예약을 찾을 수 없습니다.';
+      }
+      if (error.code == 'TIMEOUT') {
+        return '서버 응답 시간이 초과되었습니다.';
+      }
+      if (error.code == 'CONNECTION_ERROR') {
+        return '네트워크 연결을 확인해주세요.';
+      }
+    }
+    return '예약 취소에 실패했습니다.';
+  }
 }
 
 class _AppointmentCard extends StatelessWidget {
-  const _AppointmentCard({required this.appointment});
+  const _AppointmentCard({
+    required this.appointment,
+    required this.isCancelling,
+    required this.onCancel,
+  });
 
   final PatientAppointment appointment;
+  final bool isCancelling;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -150,6 +227,21 @@ class _AppointmentCard extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
           ),
+          if (_canCancel(appointment.status)) ...[
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: isCancelling ? null : onCancel,
+                child: isCancelling
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('예약 취소'),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -193,6 +285,18 @@ class _AppointmentCard extends StatelessWidget {
         return AppColors.textSecondary;
       default:
         return AppColors.primary;
+    }
+  }
+
+  static bool _canCancel(String status) {
+    switch (status) {
+      case 'requested':
+      case 'confirmed':
+      case 'reminded_d7':
+      case 'reminded_d1':
+        return true;
+      default:
+        return false;
     }
   }
 }

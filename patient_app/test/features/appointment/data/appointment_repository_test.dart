@@ -48,6 +48,30 @@ void main() {
         throwsA(same(apiException)),
       );
     });
+
+    test('completes cancelAppointment', () async {
+      final api = _FakeAppointmentApi();
+      final repository = AppointmentRepository(api);
+
+      await repository.cancelAppointment('appointment-uuid');
+
+      expect(api.cancelledAppointmentIds, <String>['appointment-uuid']);
+    });
+
+    test('preserves an ApiException from cancelAppointment', () async {
+      const apiException = ApiException(
+        message: 'Request failed',
+        statusCode: 404,
+      );
+      final repository = AppointmentRepository(
+        _FakeAppointmentApi(cancelError: apiException),
+      );
+
+      await expectLater(
+        repository.cancelAppointment('appointment-uuid'),
+        throwsA(same(apiException)),
+      );
+    });
   });
 }
 
@@ -63,11 +87,13 @@ const _validJson = <String, dynamic>{
 };
 
 class _FakeAppointmentApi extends AppointmentApi {
-  _FakeAppointmentApi({this.response, this.error})
+  _FakeAppointmentApi({this.response, this.error, this.cancelError})
     : super(ApiClient(dio: Dio()));
 
   final List<dynamic>? response;
   final Object? error;
+  final Object? cancelError;
+  final List<String> cancelledAppointmentIds = <String>[];
 
   @override
   Future<List<dynamic>> getMyAppointments() async {
@@ -75,5 +101,13 @@ class _FakeAppointmentApi extends AppointmentApi {
       throw error!;
     }
     return response ?? <dynamic>[];
+  }
+
+  @override
+  Future<void> cancelAppointment(String appointmentId) async {
+    if (cancelError != null) {
+      throw cancelError!;
+    }
+    cancelledAppointmentIds.add(appointmentId);
   }
 }

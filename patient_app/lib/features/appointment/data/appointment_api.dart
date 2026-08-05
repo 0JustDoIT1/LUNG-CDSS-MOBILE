@@ -15,4 +15,16 @@ class AppointmentApi {
 
     return data;
   }
+
+  Future<void> cancelAppointment(String appointmentId) async {
+    if (appointmentId.trim().isEmpty) {
+      throw ArgumentError.value(
+        appointmentId,
+        'appointmentId',
+        'must not be empty',
+      );
+    }
+
+    await _apiClient.post<void>('/api/appointments/$appointmentId/cancel/');
+  }
 }

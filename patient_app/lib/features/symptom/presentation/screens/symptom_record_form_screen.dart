@@ -4,11 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
-import '../../../../data/models/symptom_record.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../data/models/symptom_submit_request.dart';
 import '../providers/symptom_medication_provider.dart';
-import '../../../home/presentation/providers/home_summary_provider.dart';
-import '../../../home/presentation/providers/home_summary_provider.dart';
 
 class SymptomRecordFormScreen extends ConsumerStatefulWidget {
   const SymptomRecordFormScreen({super.key});
@@ -21,24 +20,18 @@ class SymptomRecordFormScreen extends ConsumerStatefulWidget {
 class _SymptomRecordFormScreenState
     extends ConsumerState<SymptomRecordFormScreen> {
   final TextEditingController _memoController = TextEditingController();
-
-  final Map<String, int> _selectedSymptoms = {
-    '기침': 0,
-    '호흡곤란': 0,
-    '가슴 통증': 0,
-    '피로': 0,
-    '발열': 0,
-    '가래': 0,
+  final Map<String, String?> _values = <String, String?>{
+    'cough': null,
+    'dyspnea': null,
+    'hemoptysis': null,
+    'chestPain': null,
+    'fever': null,
+    'weightLoss': null,
+    'appetite': null,
+    'fatigue': null,
   };
 
-  int _overallSeverity = 0;
-  bool _isSaving = false;
-
-  bool get _hasSelectedSymptom {
-    return _selectedSymptoms.values.any(
-      (severity) => severity > 0,
-    );
-  }
+  bool get _isComplete => _values.values.every((value) => value != null);
 
   @override
   void dispose() {
@@ -46,244 +39,161 @@ class _SymptomRecordFormScreenState
     super.dispose();
   }
 
-  String _severityText(int severity) {
-    switch (severity) {
-      case 1:
-        return '경미';
-      case 2:
-        return '보통';
-      case 3:
-        return '심함';
-      default:
-        return '없음';
+  Future<void> _submit() async {
+    if (!_isComplete) {
+      return;
+    }
+
+    final request = SymptomSubmitRequest(
+      cough: _values['cough']!,
+      dyspnea: _values['dyspnea']!,
+      hemoptysis: _values['hemoptysis']!,
+      chestPain: _values['chestPain']!,
+      fever: _values['fever']!,
+      weightLoss: _values['weightLoss']!,
+      appetite: _values['appetite']!,
+      fatigue: _values['fatigue']!,
+    );
+
+    try {
+      await ref.read(symptomSubmitProvider.notifier).submit(request);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('증상 정보가 제출되었습니다.')));
+      context.pop();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_errorMessage(error))));
     }
   }
 
-  Future<void> _saveRecord() async {
-    if (!_hasSelectedSymptom) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('한 가지 이상의 증상을 선택해주세요.'),
-        ),
-      );
-      return;
+  static String _errorMessage(Object error) {
+    if (error is ApiException) {
+      if (error.statusCode == 400) {
+        return '입력한 증상 정보를 확인해주세요.';
+      }
+      if (error.statusCode == 401) {
+        return '인증 정보가 만료됐거나 유효하지 않습니다.';
+      }
+      if (error.statusCode == 403) {
+        return '증상 정보를 제출할 권한이 없습니다.';
+      }
+      if (error.code == 'TIMEOUT') {
+        return '서버 응답 시간이 초과되었습니다.';
+      }
+      if (error.code == 'CONNECTION_ERROR') {
+        return '네트워크 연결을 확인해주세요.';
+      }
     }
-
-    if (_overallSeverity == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('전반적인 증상 정도를 선택해주세요.'),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSaving = true;
-    });
-
-    final symptoms = _selectedSymptoms.entries
-        .where((entry) => entry.value > 0)
-        .map(
-          (entry) => SymptomItem(
-            name: entry.key,
-            severity: entry.value,
-          ),
-        )
-        .toList();
-
-    final record = SymptomRecord(
-      id: 'symptom-${DateTime.now().millisecondsSinceEpoch}',
-      recordedAt: DateTime.now(),
-      symptoms: symptoms,
-      overallSeverity: _overallSeverity,
-      memo: _memoController.text.trim(),
-    );
-
-    await ref
-        .read(symptomRecordsProvider.notifier)
-        .addRecord(record);
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isSaving = false;
-    });
-
-    final resultState = ref.read(symptomRecordsProvider);
-
-    if (resultState.hasError) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('증상 기록 저장에 실패했습니다.'),
-        ),
-      );
-      return;
-    }
-
-    ref.invalidate(homeSummaryProvider);
-    context.pop();
+    return '증상 정보를 제출하지 못했습니다.';
   }
 
   @override
   Widget build(BuildContext context) {
+    final isSubmitting = ref.watch(symptomSubmitProvider);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('증상 기록'),
-      ),
+      appBar: AppBar(title: const Text('증상 체크')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            20,
-            20,
-            20,
-            40,
-          ),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
           children: [
-            const Text(
-              '오늘 느낀 증상을 선택해주세요',
-              style: AppTextStyles.headlineMedium,
-            ),
+            const Text('현재 증상을 모두 선택해주세요', style: AppTextStyles.headlineMedium),
             const SizedBox(height: 8),
             Text(
-              '증상별로 느낀 정도를 선택할 수 있습니다.',
+              '각 항목은 서버에서 허용하는 선택지로 제출됩니다.',
               style: AppTextStyles.bodyMedium.copyWith(
                 color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 24),
-
-            ..._selectedSymptoms.entries.map((entry) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: _SymptomSelectionCard(
-                  symptomName: entry.key,
-                  selectedSeverity: entry.value,
-                  severityText: _severityText,
-                  onChanged: (severity) {
-                    setState(() {
-                      _selectedSymptoms[entry.key] = severity;
-                    });
-                  },
-                ),
-              );
-            }),
-
-            const SizedBox(height: 16),
-
-            const Text(
-              '전반적인 증상 정도',
-              style: AppTextStyles.headlineMedium,
+            _selection('기침', 'cough', SymptomSubmitRequest.coughValues),
+            _selection('호흡곤란', 'dyspnea', SymptomSubmitRequest.dyspneaValues),
+            _selection(
+              '객혈',
+              'hemoptysis',
+              SymptomSubmitRequest.hemoptysisValues,
             ),
-            const SizedBox(height: 14),
-
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: List.generate(3, (index) {
-                final severity = index + 1;
-                final isSelected = _overallSeverity == severity;
-
-                return ChoiceChip(
-                  label: Text(_severityText(severity)),
-                  selected: isSelected,
-                  onSelected: (_) {
-                    setState(() {
-                      _overallSeverity = severity;
-                    });
-                  },
-                );
-              }),
+            _selection('흉통', 'chestPain', SymptomSubmitRequest.chestPainValues),
+            _selection('발열', 'fever', SymptomSubmitRequest.feverValues),
+            _selection(
+              '체중 감소',
+              'weightLoss',
+              SymptomSubmitRequest.weightLossValues,
             ),
-
-            const SizedBox(height: 28),
-
-            const Text(
-              '메모',
-              style: AppTextStyles.headlineMedium,
-            ),
+            _selection('식욕', 'appetite', SymptomSubmitRequest.appetiteValues),
+            _selection('피로', 'fatigue', SymptomSubmitRequest.fatigueValues),
             const SizedBox(height: 12),
-
-            TextField(
-              controller: _memoController,
-              minLines: 4,
-              maxLines: 6,
-              maxLength: 300,
-              decoration: const InputDecoration(
-                hintText: '증상이 시작된 시간이나 특이사항을 입력해주세요.',
-                alignLabelWithHint: true,
+            const Text('메모', style: AppTextStyles.headlineMedium),
+            const SizedBox(height: 8),
+            Text(
+              '메모는 이번 증상 제출 API에 포함되지 않습니다.',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
-
+            const SizedBox(height: 12),
+            TextField(
+              controller: _memoController,
+              minLines: 3,
+              maxLines: 5,
+              maxLength: 300,
+              decoration: const InputDecoration(hintText: '개인 메모를 입력할 수 있습니다.'),
+            ),
             const SizedBox(height: 24),
-
             AppButton(
-              text: '기록 저장',
-              isLoading: _isSaving,
-              onPressed: _isSaving ? null : _saveRecord,
+              text: '증상 제출',
+              isLoading: isSubmitting,
+              onPressed: !_isComplete || isSubmitting ? null : _submit,
             ),
           ],
         ),
       ),
     );
   }
-}
 
-class _SymptomSelectionCard extends StatelessWidget {
-  const _SymptomSelectionCard({
-    required this.symptomName,
-    required this.selectedSeverity,
-    required this.severityText,
-    required this.onChanged,
-  });
-
-  final String symptomName;
-  final int selectedSeverity;
-  final String Function(int severity) severityText;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: selectedSeverity > 0
-              ? AppColors.primary
-              : AppColors.border,
+  Widget _selection(String title, String key, Set<String> options) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: _values[key] == null ? AppColors.border : AppColors.primary,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            symptomName,
-            style: AppTextStyles.bodyMedium.copyWith(
-              fontWeight: FontWeight.w700,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: List.generate(4, (index) {
-              final severity = index;
-              final isSelected = selectedSeverity == severity;
-
-              return ChoiceChip(
-                label: Text(severityText(severity)),
-                selected: isSelected,
-                onSelected: (_) {
-                  onChanged(severity);
-                },
-              );
-            }),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: options.map((option) {
+                return ChoiceChip(
+                  label: Text(option),
+                  selected: _values[key] == option,
+                  onSelected: (_) => setState(() => _values[key] = option),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
       ),
     );
   }

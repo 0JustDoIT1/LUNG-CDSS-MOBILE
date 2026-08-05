@@ -8,6 +8,9 @@ import '../../../auth/presentation/providers/auth_dependency_providers.dart';
 import '../../data/medication_api.dart';
 import '../../data/medication_repository.dart';
 import '../../data/models/medication_log.dart';
+import '../../data/models/symptom_submit_request.dart';
+import '../../data/symptom_api.dart';
+import '../../data/symptom_repository.dart';
 
 final symptomMedicationRepositoryProvider =
     Provider<SymptomMedicationRepository>((ref) {
@@ -121,6 +124,39 @@ class MedicationTakenNotifier extends Notifier<Set<String>> {
       await ref.read(todayMedicationLogsProvider.future);
     } finally {
       state = <String>{...state}..remove(logId);
+    }
+  }
+}
+
+final symptomApiProvider = Provider<SymptomApi>((ref) {
+  final apiClient = ref.watch(apiClientProvider);
+  return SymptomApi(apiClient);
+});
+
+final symptomRepositoryProvider = Provider<SymptomRepository>((ref) {
+  final symptomApi = ref.watch(symptomApiProvider);
+  return SymptomRepository(symptomApi);
+});
+
+final symptomSubmitProvider = NotifierProvider<SymptomSubmitNotifier, bool>(
+  SymptomSubmitNotifier.new,
+);
+
+class SymptomSubmitNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  Future<void> submit(SymptomSubmitRequest request) async {
+    if (state) {
+      return;
+    }
+
+    state = true;
+    try {
+      final repository = ref.read(symptomRepositoryProvider);
+      await repository.submitSymptoms(request);
+    } finally {
+      state = false;
     }
   }
 }

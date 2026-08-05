@@ -11,6 +11,10 @@ class AppointmentRepository {
     return parseAppointments(appointments);
   }
 
+  Future<void> cancelAppointment(String appointmentId) {
+    return _appointmentApi.cancelAppointment(appointmentId);
+  }
+
   static List<PatientAppointment> parseAppointments(
     List<dynamic> appointments,
   ) {
