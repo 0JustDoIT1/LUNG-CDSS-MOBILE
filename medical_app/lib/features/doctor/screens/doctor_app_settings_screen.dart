@@ -1,14 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/auth/session_controller.dart';
 import '../../../core/settings/app_settings_controller.dart';
 
 /// 앱 설정 — 화면표시(테마/화면항상켜짐/글자크기) + 알림 + 위젯 + 약관 및 정책
-class DoctorAppSettingsScreen extends StatelessWidget {
+/// 알림설정은 실제 서버(NotificationPreference API)와 동기화됨.
+class DoctorAppSettingsScreen extends StatefulWidget {
   const DoctorAppSettingsScreen({super.key});
 
+  @override
+  State<DoctorAppSettingsScreen> createState() => _DoctorAppSettingsScreenState();
+}
+
+class _DoctorAppSettingsScreenState extends State<DoctorAppSettingsScreen> {
   // 포인트 청록 컬러
   static const Color pointColor = Color(0xFF0D9488);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final token = context.read<SessionController>().accessToken;
+      if (token != null) {
+        context.read<AppSettingsController>().syncNotificationsFromServer(token);
+      }
+    });
+  }
 
   /// 알림 카테고리별 아이콘
   IconData _getNotificationIcon(String category) {
@@ -138,7 +156,11 @@ class DoctorAppSettingsScreen extends StatelessWidget {
                           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                         ),
                         value: isChecked,
-                        onChanged: (v) => settings.setNotification(categoryKey, v),
+                        onChanged: (v) => settings.setNotification(
+                          categoryKey,
+                          v,
+                          accessToken: context.read<SessionController>().accessToken,
+                        ),
                       );
                     },
                   ),

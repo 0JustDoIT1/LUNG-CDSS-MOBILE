@@ -1,48 +1,154 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../../core/api/appointments_api.dart';
+import '../../../../core/api/auth_api.dart';
+import '../../../../core/api/cases_api.dart';
+import '../../../../core/auth/session_controller.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../models/appointment.dart';
 import '../../models/review_case.dart';
 import '../case_detail_screen.dart';
 import '../patient_detail_screen.dart';
 
-/// 탭 3(중앙): 홈 대시보드.
-/// 디자인 시안 반영 — 인사말 + 요약카드 2개 + 즐겨찾기 케이스 + 최근 검토대기.
-/// TODO: 실제 연결 시 아래 mock 데이터를 실데이터로 교체.
-
-class DoctorHomeTab extends StatelessWidget {
+/// 탭 3(중앙): 홈 대시보드. 실제 API(cases, appointments) 연동됨.
+/// 검토대기/오늘예약 건수, 다음진료, 즐겨찾기 케이스, 최근 검토대기 전부 실제 데이터 기반.
+class DoctorHomeTab extends StatefulWidget {
   final ValueChanged<int> onNavigateToTab;
 
   const DoctorHomeTab({super.key, required this.onNavigateToTab});
 
   @override
+  State<DoctorHomeTab> createState() => _DoctorHomeTabState();
+}
+
+class _DoctorHomeTabState extends State<DoctorHomeTab> {
+  List<ReviewCase> _cases = [];
+  List<Appointment> _appointments = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+
+    try {
+      final cases = await fetchCases(token);
+      final rawAppointments = await fetchMyAppointmentsRaw(token);
+      if (!mounted) return;
+      setState(() {
+        _cases = cases;
+        _appointments = rawAppointments.map(Appointment.fromJson).toList();
+        _isLoading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.message;
+      });
+    }
+  }
+
+  List<ReviewCase> get _pendingCases =>
+      _cases.where((c) => c.status == CaseStatus.pending).toList();
+
+  int get _urgentCount => _pendingCases.where((c) => c.isUrgent).length;
+
+  List<Appointment> get _todayAppointments {
+    final now = DateTime.now();
+    return _appointments
+        .where((a) =>
+            a.dateTime.year == now.year &&
+            a.dateTime.month == now.month &&
+            a.dateTime.day == now.day)
+        .toList();
+  }
+
+  Appointment? get _nextAppointment {
+    final now = DateTime.now();
+    final upcoming = _todayAppointments.where((a) => a.dateTime.isAfter(now)).toList()
+      ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+    return upcoming.isEmpty ? null : upcoming.first;
+  }
+
+  List<ReviewCase> get _favoriteCases => _cases.where((c) => c.isFavorite).toList();
+
+  List<ReviewCase> get _recentPendingCases {
+    final list = List.of(_pendingCases)
+      ..sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+    return list.take(3).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_errorMessage != null) {
+      return Center(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _GreetingHeader(),
-            const SizedBox(height: 16),
-            _SummaryRow(onNavigateToTab: onNavigateToTab),
-            const SizedBox(height: 16),
-            const _NextAppointmentCard(),
-            const SizedBox(height: 24),
-            _SectionTitle('즐겨찾기 케이스', icon: Icons.star, color: AppTheme.gradientStart),
+            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
             const SizedBox(height: 8),
-            _FavoriteCaseTile(name: '홍길동', type: 'LUAD'),
-            const SizedBox(height: 8),
-            _FavoriteCaseTile(name: '이순신', type: 'LUSC'),
-            const SizedBox(height: 24),
-            _SectionTitle('최근 검토대기', icon: Icons.pending_actions, color: AppTheme.gradientEnd),
-            const SizedBox(height: 8),
-            _RecentCaseTile(
-              name: '최민수',
-              confidence: 68,
-              urgent: true,
-            ),
+            TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _GreetingHeader(),
+              const SizedBox(height: 16),
+              _SummaryRow(
+                pendingCount: _pendingCases.length,
+                urgentCount: _urgentCount,
+                todayAppointmentCount: _todayAppointments.length,
+                onNavigateToTab: widget.onNavigateToTab,
+              ),
+              const SizedBox(height: 16),
+              _NextAppointmentCard(appointment: _nextAppointment),
+              const SizedBox(height: 24),
+              _SectionTitle('즐겨찾기 케이스', icon: Icons.star, color: AppTheme.gradientStart),
+              const SizedBox(height: 8),
+              if (_favoriteCases.isEmpty)
+                Text('즐겨찾기한 케이스가 없어요', style: TextStyle(color: Colors.grey.shade500))
+              else
+                ..._favoriteCases.map((c) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _FavoriteCaseTile(reviewCase: c),
+                    )),
+              const SizedBox(height: 24),
+              _SectionTitle('최근 검토대기', icon: Icons.pending_actions, color: AppTheme.gradientEnd),
+              const SizedBox(height: 8),
+              if (_recentPendingCases.isEmpty)
+                Text('검토대기 중인 케이스가 없어요', style: TextStyle(color: Colors.grey.shade500))
+              else
+                ..._recentPendingCases.map((c) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _RecentCaseTile(reviewCase: c),
+                    )),
+            ],
+          ),
         ),
       ),
     );
@@ -52,16 +158,17 @@ class DoctorHomeTab extends StatelessWidget {
 class _GreetingHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final session = context.watch<SessionController>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(Icons.medical_services, color: const Color.fromARGB(255, 0, 110, 255), size: 22),
+            Icon(Icons.medical_services, color: AppTheme.seed, size: 22),
             const SizedBox(width: 6),
-            const Text(
-              '김의사님',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              '${session.name}님',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -76,9 +183,17 @@ class _GreetingHeader extends StatelessWidget {
 }
 
 class _SummaryRow extends StatelessWidget {
+  final int pendingCount;
+  final int urgentCount;
+  final int todayAppointmentCount;
   final ValueChanged<int> onNavigateToTab;
 
-  const _SummaryRow({required this.onNavigateToTab});
+  const _SummaryRow({
+    required this.pendingCount,
+    required this.urgentCount,
+    required this.todayAppointmentCount,
+    required this.onNavigateToTab,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -89,8 +204,8 @@ class _SummaryRow extends StatelessWidget {
           Expanded(
             child: _SummaryCard(
               title: '검토대기',
-              value: '7건',
-              subtitle: '긴급 2건 포함',
+              value: '$pendingCount건',
+              subtitle: urgentCount > 0 ? '긴급 $urgentCount건 포함' : null,
               cardColor: AppTheme.gradientEnd,
               onTap: () => onNavigateToTab(0), // 케이스(검토대기) 탭
             ),
@@ -99,7 +214,7 @@ class _SummaryRow extends StatelessWidget {
           Expanded(
             child: _SummaryCard(
               title: '오늘 예약',
-              value: '12건',
+              value: '$todayAppointmentCount건',
               subtitle: null,
               cardColor: AppTheme.gradientStart,
               onTap: () => onNavigateToTab(1), // 일정 탭
@@ -129,7 +244,7 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: cardColor, // 색을 여기(Material)에 줘야 그 위에 리플/호버가 보임
+      color: cardColor,
       borderRadius: BorderRadius.circular(16),
       elevation: 4,
       shadowColor: cardColor.withValues(alpha: 0.5),
@@ -146,24 +261,14 @@ class _SummaryCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(fontSize: 13, color: Colors.white70),
-                  ),
+                  Text(title, style: const TextStyle(fontSize: 13, color: Colors.white70)),
                   const SizedBox(height: 6),
                   Text(
                     value,
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    subtitle ?? ' ',
-                    style: const TextStyle(fontSize: 12, color: Colors.white70),
-                  ),
+                  Text(subtitle ?? ' ', style: const TextStyle(fontSize: 12, color: Colors.white70)),
                 ],
               ),
               const Positioned(
@@ -179,13 +284,11 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-/// 오늘의 다음 진료 — 가장 가까운 예약 1건만 크게 강조해서 보여줌.
-/// TODO: 실제 연결 시 _mockNextAppointment 대신 오늘 예약 중 가장 가까운 건으로 교체.
-
+/// 오늘의 다음 진료 — 가장 가까운 예약 1건만 크게 강조해서 보여줌. appointment가 null이면 "예약 없음" 표시.
 class _NextAppointmentCard extends StatelessWidget {
-  const _NextAppointmentCard();
+  final Appointment? appointment;
 
-  DateTime get _mockNextAppointment => DateTime.now().add(const Duration(minutes: 30));
+  const _NextAppointmentCard({required this.appointment});
 
   String _countdownLabel(DateTime target) {
     final diff = target.difference(DateTime.now());
@@ -199,127 +302,71 @@ class _NextAppointmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
-    final appointment = _mockNextAppointment;
-    final dateLabel =
-        '${appointment.month}월 ${appointment.day}일 (${weekdays[appointment.weekday - 1]})';
-    String two(int n) => n.toString().padLeft(2, '0');
-    final timeLabel = '${two(appointment.hour)}:${two(appointment.minute)}';
-
-    // 간호사 쪽과 동일한 연한 배경 및 톤온톤 컬러 설정
-    final cardBgColor = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final headerBgColor = isDark ? AppTheme.seed.withOpacity(0.15) : AppTheme.seed.withOpacity(0.08);
-    final borderColor = isDark ? AppTheme.seed.withOpacity(0.4) : AppTheme.seed.withOpacity(0.3);
+    final a = appointment;
 
     return Container(
       width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: cardBgColor,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor, width: 1.2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4)),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 상단 연한 헤더 띠
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: headerBgColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.access_time_filled_rounded, color: AppTheme.seed, size: 18),
-                const SizedBox(width: 6),
-                const Text(
-                  '오늘의 다음 진료',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.seed,
-                  ),
-                ),
+          Row(
+            children: [
+              const Icon(Icons.schedule, color: Colors.black87, size: 18),
+              const SizedBox(width: 6),
+              const Text(
+                '오늘의 다음 진료',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black87),
+              ),
+              if (a != null) ...[
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.seed,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+                  decoration: BoxDecoration(color: AppTheme.seed, borderRadius: BorderRadius.circular(12)),
                   child: Text(
-                    _countdownLabel(appointment),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                    _countdownLabel(a.dateTime),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
                   ),
                 ),
               ],
-            ),
+            ],
           ),
+          const SizedBox(height: 16),
+          if (a == null)
+            Text('오늘 남은 예약이 없어요', style: TextStyle(color: Colors.grey.shade500))
+          else ...[
+            Builder(builder: (context) {
+              const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+              final dateLabel =
+                  '${a.dateTime.month}월 ${a.dateTime.day}일 (${weekdays[a.dateTime.weekday - 1]})';
+              String two(int n) => n.toString().padLeft(2, '0');
+              final timeLabel = '${two(a.dateTime.hour)}:${two(a.dateTime.minute)}';
 
-          // 2. 카드 본문 (시간 & 환자명)
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      dateLabel,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      timeLabel,
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black87,
-                        height: 1.1,
-                      ),
-                    ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '진료 환자',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '홍길동 님',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(dateLabel, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54)),
+                  const SizedBox(height: 2),
+                  Text(timeLabel, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.black, height: 1.0)),
+                  const SizedBox(height: 6),
+                  Text('${a.patientName}님', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.black87)),
+                ],
+              );
+            }),
+          ],
         ],
       ),
     );
   }
 }
+
 class _SectionTitle extends StatelessWidget {
   final String text;
   final IconData icon;
@@ -333,20 +380,16 @@ class _SectionTitle extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: color),
         const SizedBox(width: 6),
-        Text(
-          text,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-        ),
+        Text(text, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
       ],
     );
   }
 }
 
 class _FavoriteCaseTile extends StatelessWidget {
-  final String name;
-  final String type;
+  final ReviewCase reviewCase;
 
-  const _FavoriteCaseTile({required this.name, required this.type});
+  const _FavoriteCaseTile({required this.reviewCase});
 
   @override
   Widget build(BuildContext context) {
@@ -354,18 +397,16 @@ class _FavoriteCaseTile extends StatelessWidget {
       color: Colors.white,
       child: ListTile(
         leading: const Icon(Icons.star, color: Colors.amber, size: 22),
-        title: Text(name),
+        title: Text(reviewCase.patientName),
         trailing: Chip(
-          label: Text(type),
+          label: Text(reviewCase.type.label),
           backgroundColor: Colors.blue.shade50,
           labelStyle: TextStyle(color: Colors.blue.shade700, fontSize: 12),
           side: BorderSide.none,
         ),
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => PatientDetailScreen(patientName: name),
-            ),
+            MaterialPageRoute(builder: (_) => PatientDetailScreen(patientName: reviewCase.patientName)),
           );
         },
       ),
@@ -374,51 +415,31 @@ class _FavoriteCaseTile extends StatelessWidget {
 }
 
 class _RecentCaseTile extends StatelessWidget {
-  final String name;
-  final int confidence;
-  final bool urgent;
+  final ReviewCase reviewCase;
 
-  const _RecentCaseTile({
-    required this.name,
-    required this.confidence,
-    required this.urgent,
-  });
+  const _RecentCaseTile({required this.reviewCase});
 
   @override
   Widget build(BuildContext context) {
+    final confidencePercent = (reviewCase.confidence * 100).round();
+
     return Card(
       color: Colors.white,
       child: ListTile(
         leading: Icon(Icons.pending_actions, color: AppTheme.gradientEnd, size: 22),
-        title: Text(name),
-        subtitle: Text('신뢰도 $confidence%'),
-        trailing: urgent
+        title: Text(reviewCase.patientName),
+        subtitle: Text('신뢰도 $confidencePercent%'),
+        trailing: reviewCase.isUrgent
             ? Chip(
                 label: const Text('긴급'),
                 backgroundColor: Colors.red.shade50,
-                labelStyle: TextStyle(
-                  color: Colors.red.shade700,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+                labelStyle: TextStyle(color: Colors.red.shade700, fontSize: 12, fontWeight: FontWeight.w600),
                 side: BorderSide.none,
               )
             : null,
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => CaseDetailScreen(
-                reviewCase: ReviewCase(
-                  id: 'home-recent',
-                  patientName: name,
-                  specimenId: '-',
-                  type: CaseType.luad,
-                  confidence: confidence / 100,
-                  status: CaseStatus.pending,
-                  uploadedAt: DateTime.now(),
-                ),
-              ),
-            ),
+            MaterialPageRoute(builder: (_) => CaseDetailScreen(reviewCase: reviewCase)),
           );
         },
       ),

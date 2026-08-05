@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/api/auth_api.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/constants/user_role.dart';
 import '../../../core/theme/app_theme.dart';
-import '../mock/registered_emails_mock.dart';
 
-/// 회원가입 화면 — 단일 폼으로 통합.
-/// - 역할 선택(드롭다운): 의사 → 공통정보+면허번호 인라인 인증 / 간호사 → 공통정보만
-/// - 의사면허번호 인증은 같은 폼 안에서 인라인으로 처리 (별도 화면 아님)
-///
-/// TODO: 실제 연결 시 mock 로직(이메일 중복확인, 면허번호 검증)을 실제 API로 교체.
+/// 회원가입 화면 — 실제 API(POST /api/auth/staff/signup/) 연동됨.
+/// - 역할 선택: 의사 → 공통정보+면허번호 인라인 인증 / 간호사 → 공통정보만
+/// - 병원은 GET /api/auth/hospital/에서 자동으로 가져옴 (지금은 1곳뿐)
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
 
@@ -30,25 +28,46 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailIdController = TextEditingController();
   final _customDomainController = TextEditingController();
   String? _selectedDomain;
-
   static const _domainOptions = ['naver.com', 'gmail.com', 'hospital.com', '직접 입력'];
+
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordConfirmController = TextEditingController();
   final _licenseController = TextEditingController();
 
-  String? _hospital;
   String? _doctorDept;
   String? _nurseDept;
 
+  Hospital? _hospital;
+  bool _hospitalLoading = true;
+
   _LicenseStatus _licenseStatus = _LicenseStatus.none;
   String? _errorMessage;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
     _passwordController.addListener(() => setState(() {}));
     _passwordConfirmController.addListener(() => setState(() {}));
+    _loadHospital();
+  }
+
+  Future<void> _loadHospital() async {
+    try {
+      final hospital = await fetchHospital();
+      if (!mounted) return;
+      setState(() {
+        _hospital = hospital;
+        _hospitalLoading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _hospitalLoading = false;
+        _errorMessage = e.message;
+      });
+    }
   }
 
   @override
@@ -78,22 +97,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     setState(() => _licenseStatus = _LicenseStatus.loading);
 
-    // mock: 건강보험심사평가원 API 호출 대신 1초 지연 후 6자리 숫자면 성공 처리
-    await Future.delayed(const Duration(seconds: 1));
+    // TODO: 건강보험심사평가원 실제 검증 API 연동 전 임시 형식체크(6자리 숫자).
+    // 서버도 license_number는 "형식체크만, 실제 발급기관 검증 미연동" 상태.
+    await Future.delayed(const Duration(milliseconds: 500));
     final isValid = RegExp(r'^\d{6}$').hasMatch(_licenseController.text.trim());
 
     if (!mounted) return;
     setState(() => _licenseStatus = isValid ? _LicenseStatus.success : _LicenseStatus.failed);
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     setState(() => _errorMessage = null);
 
     if (_role == null) {
       setState(() => _errorMessage = '역할을 선택해주세요');
       return;
     }
-
     if (_nameController.text.trim().isEmpty ||
         _emailIdController.text.trim().isEmpty ||
         _domain.isEmpty ||
@@ -102,45 +121,56 @@ class _SignUpScreenState extends State<SignUpScreen> {
       setState(() => _errorMessage = '모든 항목을 입력해주세요');
       return;
     }
-
-    if (mockRegisteredEmails().contains(_fullEmail)) {
-      setState(() => _errorMessage = '이미 등록된 이메일입니다');
-      return;
-    }
-
     if (!_passwordValid) {
       setState(() => _errorMessage = '비밀번호는 8~16자, 영문·숫자·특수문자를 모두 포함해야 합니다');
       return;
     }
-
     if (!_passwordConfirmMatches) {
       setState(() => _errorMessage = '비밀번호가 일치하지 않습니다');
       return;
     }
-
     if (_hospital == null) {
-      setState(() => _errorMessage = '소속 병원을 선택해주세요');
+      setState(() => _errorMessage = '병원 정보를 불러오지 못했어요. 다시 시도해주세요');
       return;
     }
-
     if (_role == UserRole.doctor && _doctorDept == null) {
       setState(() => _errorMessage = '진료과를 선택해주세요');
       return;
     }
-
     if (_role == UserRole.nurse && _nurseDept == null) {
       setState(() => _errorMessage = '부서를 선택해주세요');
       return;
     }
-
     if (_role == UserRole.doctor && _licenseStatus != _LicenseStatus.success) {
       setState(() => _errorMessage = '의사면허번호 인증을 완료해주세요');
       return;
     }
 
-    // TODO: 회원가입 API 연결. 지금은 임시로 바로 로그인 처리.
-    final session = context.read<SessionController>();
-    session.logInMock(_role!);
+    setState(() => _isSubmitting = true);
+
+    try {
+      final result = await staffSignup(
+        role: _role == UserRole.doctor ? 'doctor' : 'nurse',
+        name: _nameController.text.trim(),
+        email: _fullEmail,
+        phoneNumber: _phoneController.text.trim(),
+        password: _passwordController.text,
+        passwordConfirm: _passwordConfirmController.text,
+        hospitalId: _hospital!.id,
+        department: _role == UserRole.doctor ? _doctorDept! : _nurseDept!,
+        licenseNumber: _role == UserRole.doctor ? _licenseController.text.trim() : null,
+      );
+
+      if (!mounted) return;
+      context.read<SessionController>().applyLoginResult(result);
+      // 성공 시 SessionController가 notifyListeners() → go_router가 자동으로
+      // /doctor 또는 /nurse로 이동시켜줌.
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = e.message);
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
@@ -162,6 +192,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
               hintText: '역할을 선택하세요.',
               items: const [UserRole.doctor, UserRole.nurse],
               labelBuilder: (r) => r == UserRole.doctor ? '의사' : '간호사',
+              iconBuilder: (r) =>
+                  r == UserRole.doctor ? Icons.medical_services_outlined : Icons.favorite_outline,
               onChanged: (r) => setState(() {
                 _role = r;
                 _licenseStatus = _LicenseStatus.none;
@@ -256,12 +288,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
             const SizedBox(height: 16),
             _FieldLabel('소속 병원'),
             const SizedBox(height: 6),
-            _Dropdown<String>(
-              value: _hospital,
-              hintText: '병원을 선택하세요.',
-              items: const ['OO대학병원'],
-              labelBuilder: (v) => v,
-              onChanged: (v) => setState(() => _hospital = v),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: _hospitalLoading
+                  ? Row(
+                      children: [
+                        const SizedBox(
+                          width: 14, height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 8),
+                        Text('불러오는 중...', style: TextStyle(color: Colors.grey.shade500)),
+                      ],
+                    )
+                  : Text(_hospital?.name ?? '병원 정보를 불러오지 못했어요'),
             ),
             if (_role != null) ...[
               const SizedBox(height: 16),
@@ -315,8 +361,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                       child: _licenseStatus == _LicenseStatus.loading
                           ? const SizedBox(
-                              width: 16,
-                              height: 16,
+                              width: 16, height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Text('인증하기'),
@@ -374,8 +419,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   backgroundColor: AppTheme.seed,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                onPressed: _submit,
-                child: const Text('가입 완료'),
+                onPressed: _isSubmitting ? null : _submit,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 18, height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('가입 완료'),
               ),
             ),
           ],
@@ -430,6 +480,7 @@ class _Dropdown<T> extends StatelessWidget {
   final String hintText;
   final List<T> items;
   final String Function(T) labelBuilder;
+  final IconData Function(T)? iconBuilder;
   final ValueChanged<T?> onChanged;
 
   const _Dropdown({
@@ -437,6 +488,7 @@ class _Dropdown<T> extends StatelessWidget {
     required this.hintText,
     required this.items,
     required this.labelBuilder,
+    this.iconBuilder,
     required this.onChanged,
   });
 
@@ -454,7 +506,21 @@ class _Dropdown<T> extends StatelessWidget {
         hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
       ),
       dropdownMenuEntries: items
-          .map((item) => DropdownMenuEntry(value: item, label: labelBuilder(item)))
+          .map((item) => DropdownMenuEntry(
+                value: item,
+                label: labelBuilder(item),
+                leadingIcon: iconBuilder == null
+                    ? null
+                    : Icon(iconBuilder!(item), size: 20, color: AppTheme.seed),
+                labelWidget: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                  ),
+                  child: Text(labelBuilder(item)),
+                ),
+              ))
           .toList(),
       onSelected: onChanged,
     );

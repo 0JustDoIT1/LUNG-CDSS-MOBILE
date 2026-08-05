@@ -5,7 +5,7 @@ import '../api/auth_api.dart';
 import '../constants/user_role.dart';
 
 /// 로그인 상태 & 현재 역할(의사/간호사)을 앱 전역에서 들고 있는 컨트롤러.
-/// 실제 서버(POST /api/auth/staff/login/) 로그인 연동됨.
+/// 실제 서버(POST /api/auth/staff/login/, .../staff/signup/) 연동됨.
 /// 토큰은 SharedPreferences에 로컬 저장 — 앱 껐다 켜도 로그인 유지.
 ///
 /// TODO: refresh 토큰으로 access 토큰 자동갱신하는 로직은 아직 없음(만료되면 재로그인 필요).
@@ -46,6 +46,27 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 로그인/회원가입 응답(StaffLoginResult)을 세션에 반영 + 로컬저장.
+  /// 지원 안 하는 역할(병리사 등)이면 false 반환, 정상 처리되면 true.
+  Future<bool> applyLoginResult(StaffLoginResult result) async {
+    final role = _parseRole(result.role);
+    if (role == null) return false;
+
+    _role = role;
+    _accessToken = result.access;
+    _refreshToken = result.refresh;
+    _name = result.name;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyAccessToken, result.access);
+    await prefs.setString(_keyRefreshToken, result.refresh);
+    await prefs.setString(_keyRole, result.role);
+    await prefs.setString(_keyName, result.name);
+
+    notifyListeners();
+    return true;
+  }
+
   /// 실제 서버 로그인. 성공하면 null, 실패하면 사용자에게 보여줄 에러 메시지를 반환.
   Future<String?> logInWithCredentials({
     required String email,
@@ -56,23 +77,8 @@ class SessionController extends ChangeNotifier {
 
     try {
       final result = await staffLogin(email: email, password: password);
-      final role = _parseRole(result.role);
-
-      if (role == null) {
-        return '이 앱은 의사/간호사 계정만 로그인할 수 있어요.';
-      }
-
-      _role = role;
-      _accessToken = result.access;
-      _refreshToken = result.refresh;
-      _name = result.name;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyAccessToken, result.access);
-      await prefs.setString(_keyRefreshToken, result.refresh);
-      await prefs.setString(_keyRole, result.role);
-      await prefs.setString(_keyName, result.name);
-
+      final ok = await applyLoginResult(result);
+      if (!ok) return '이 앱은 의사/간호사 계정만 로그인할 수 있어요.';
       return null;
     } on ApiException catch (e) {
       return e.message;
@@ -80,13 +86,6 @@ class SessionController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
-  }
-
-  /// 회원가입 후 임시로 바로 로그인 처리 (실제 staff/signup/ API 연동 전까지만 사용).
-  /// TODO: 회원가입 API 연동되면 이 메서드는 지우고 실제 로그인 응답으로 처리할 것.
-  void logInMock(UserRole role) {
-    _role = role;
-    notifyListeners();
   }
 
   Future<void> logOut() async {
