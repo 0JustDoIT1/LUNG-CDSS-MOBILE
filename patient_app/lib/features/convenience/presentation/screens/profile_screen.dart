@@ -193,9 +193,17 @@ class _ProfileView extends StatelessWidget {
         const SizedBox(height: 28),
         _InfoCard(
           children: [
-            _InfoRow(label: '이름', value: profile.name),
-            _InfoRow(label: '생년월일', value: _displayDate(profile.birthDate)),
-            _InfoRow(label: '성별', value: profileGenderLabel(profile.gender)),
+            _InfoRow(label: '이름', value: profile.name, isLocked: false),
+            _InfoRow(
+              label: '생년월일',
+              value: _displayDate(profile.birthDate),
+              isLocked: false,
+            ),
+            _InfoRow(
+              label: '성별',
+              value: profileGenderLabel(profile.gender),
+              isLocked: false,
+            ),
             if (profile.phoneNumber?.isNotEmpty == true)
               _InfoRow(label: '전화번호', value: profile.phoneNumber!),
             _InfoRow(label: '환자번호', value: profile.patientNumber),
@@ -413,9 +421,14 @@ class _InfoCard extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.isLocked = true,
+  });
   final String label;
   final String value;
+  final bool isLocked;
 
   @override
   Widget build(BuildContext context) {
@@ -441,12 +454,14 @@ class _InfoRow extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          const Icon(
-            Icons.lock_outline_rounded,
-            size: 18,
-            color: AppColors.textDisabled,
-          ),
+          if (isLocked) ...[
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.lock_outline_rounded,
+              size: 18,
+              color: AppColors.textDisabled,
+            ),
+          ],
         ],
       ),
     );

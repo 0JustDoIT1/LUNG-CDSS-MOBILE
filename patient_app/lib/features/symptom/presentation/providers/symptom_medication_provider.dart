@@ -1,13 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../data/models/medication_schedule.dart';
-import '../../../../data/models/symptom_record.dart';
 import '../../../../data/repositories/mock_symptom_medication_repository.dart';
 import '../../../../data/repositories/symptom_medication_repository.dart';
 import '../../../auth/presentation/providers/auth_dependency_providers.dart';
 import '../../data/medication_api.dart';
 import '../../data/medication_repository.dart';
 import '../../data/models/medication_log.dart';
+import '../../data/models/symptom_record.dart';
 import '../../data/models/symptom_submit_request.dart';
 import '../../data/symptom_api.dart';
 import '../../data/symptom_repository.dart';
@@ -16,32 +16,6 @@ final symptomMedicationRepositoryProvider =
     Provider<SymptomMedicationRepository>((ref) {
       return MockSymptomMedicationRepository();
     });
-
-final symptomRecordsProvider =
-    AsyncNotifierProvider<SymptomRecordsNotifier, List<SymptomRecord>>(
-      SymptomRecordsNotifier.new,
-    );
-
-class SymptomRecordsNotifier extends AsyncNotifier<List<SymptomRecord>> {
-  @override
-  Future<List<SymptomRecord>> build() async {
-    final repository = ref.read(symptomMedicationRepositoryProvider);
-
-    return repository.getSymptomRecords();
-  }
-
-  Future<void> addRecord(SymptomRecord record) async {
-    final repository = ref.read(symptomMedicationRepositoryProvider);
-
-    state = const AsyncLoading();
-
-    state = await AsyncValue.guard(() async {
-      await repository.addSymptomRecord(record);
-
-      return repository.getSymptomRecords();
-    });
-  }
-}
 
 final medicationSchedulesProvider =
     AsyncNotifierProvider<
@@ -138,6 +112,11 @@ final symptomRepositoryProvider = Provider<SymptomRepository>((ref) {
   return SymptomRepository(symptomApi);
 });
 
+final symptomRecordsProvider = FutureProvider<List<SymptomRecord>>((ref) {
+  final repository = ref.read(symptomRepositoryProvider);
+  return repository.fetchMySymptomRecords();
+});
+
 final symptomSubmitProvider = NotifierProvider<SymptomSubmitNotifier, bool>(
   SymptomSubmitNotifier.new,
 );
@@ -155,6 +134,7 @@ class SymptomSubmitNotifier extends Notifier<bool> {
     try {
       final repository = ref.read(symptomRepositoryProvider);
       await repository.submitSymptoms(request);
+      ref.invalidate(symptomRecordsProvider);
     } finally {
       state = false;
     }

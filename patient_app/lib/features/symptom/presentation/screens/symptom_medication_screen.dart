@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../core/network/api_exception.dart';
-import '../../../../data/models/symptom_record.dart';
+import '../../data/models/symptom_record.dart';
 import '../../data/models/medication_log.dart';
 import '../providers/symptom_medication_provider.dart';
 import 'package:go_router/go_router.dart';
@@ -91,7 +91,7 @@ class SymptomMedicationScreen extends ConsumerWidget {
             symptomState.when(
               loading: () => const _LoadingCard(),
               error: (error, stackTrace) => _ErrorCard(
-                message: '증상 기록을 불러오지 못했습니다.',
+                message: _symptomErrorMessage(error),
                 onRetry: () {
                   ref.invalidate(symptomRecordsProvider);
                 },
@@ -156,6 +156,17 @@ class SymptomMedicationScreen extends ConsumerWidget {
     }
 
     return '복약 정보를 불러오지 못했습니다.';
+  }
+
+  static String _symptomErrorMessage(Object error) {
+    if (error is FormatException) return '증상 기록 형식을 확인할 수 없습니다.';
+    if (error is ApiException) {
+      if (error.statusCode == 401) return '인증 정보가 만료됐거나 유효하지 않습니다.';
+      if (error.statusCode == 403) return '증상 기록을 조회할 권한이 없습니다.';
+      if (error.code == 'TIMEOUT') return '서버 응답 시간이 초과되었습니다.';
+      if (error.code == 'CONNECTION_ERROR') return '네트워크 연결을 확인해주세요.';
+    }
+    return '증상 기록을 불러오지 못했습니다.';
   }
 
   static Future<void> _markAsTaken(
@@ -345,24 +356,35 @@ class _SymptomRecordCard extends StatelessWidget {
     return '${dateTime.year}.$month.$day $hour:$minute';
   }
 
-  String _severityText(int severity) {
-    switch (severity) {
-      case 1:
-        return '경미';
-      case 2:
-        return '보통';
-      case 3:
-        return '심함';
-      default:
-        return '없음';
-    }
+  ({String label, Color color, Color background}) _riskStyle(String risk) {
+    return switch (risk) {
+      'green' => (
+        label: '낮은 위험',
+        color: AppColors.success,
+        background: AppColors.successBackground,
+      ),
+      'yellow' => (
+        label: '주의',
+        color: AppColors.warning,
+        background: AppColors.warningBackground,
+      ),
+      'red' => (
+        label: '위험',
+        color: AppColors.danger,
+        background: AppColors.dangerBackground,
+      ),
+      _ => (
+        label: '위험도 확인 필요',
+        color: AppColors.textSecondary,
+        background: AppColors.surfaceSoft,
+      ),
+    };
   }
 
   @override
   Widget build(BuildContext context) {
-    final String symptomNames = record.symptoms
-        .map((symptom) => symptom.name)
-        .join(', ');
+    final risk = _riskStyle(record.riskLevel);
+    final symptomNames = _symptomSummary(record.symptoms);
 
     return Container(
       width: double.infinity,
@@ -402,7 +424,7 @@ class _SymptomRecordCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      _formatDateTime(record.recordedAt),
+                      _formatDateTime(record.checkedAt),
                       style: AppTextStyles.bodySmall.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -416,32 +438,43 @@ class _SymptomRecordCard extends StatelessWidget {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: risk.background,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  _severityText(record.overallSeverity),
+                  risk.label,
                   style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.primary,
+                    color: risk.color,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ],
           ),
-          if (record.memo.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Text(
-              record.memo,
-              style: AppTextStyles.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.5,
-              ),
+          const SizedBox(height: 10),
+          Text(
+            record.nurseReviewed ? '간호사 확인 완료' : '확인 대기',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
             ),
-          ],
+          ),
         ],
       ),
     );
+  }
+
+  String _symptomSummary(SymptomAnswers symptoms) {
+    final entries = <String>[
+      if (symptoms.cough != '없음') '기침 ${symptoms.cough}',
+      if (symptoms.dyspnea != '없음') '호흡곤란 ${symptoms.dyspnea}',
+      if (symptoms.hemoptysis != '없음') '객혈 ${symptoms.hemoptysis}',
+      if (symptoms.chestPain != '없음') '흉통 ${symptoms.chestPain}',
+      if (symptoms.fever != '없음') '발열 ${symptoms.fever}',
+      if (symptoms.weightLoss != '없음') '체중감소 ${symptoms.weightLoss}',
+      if (symptoms.appetite != '평소와 같음') '식욕 ${symptoms.appetite}',
+      if (symptoms.fatigue != '없음') '피로 ${symptoms.fatigue}',
+    ];
+    return entries.isEmpty ? '특이 증상 없음' : entries.take(3).join(', ');
   }
 }
 
