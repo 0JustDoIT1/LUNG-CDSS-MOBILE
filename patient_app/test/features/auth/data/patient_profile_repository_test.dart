@@ -44,6 +44,33 @@ void main() {
       await expectLater(repository.getPatientProfile(), throwsFormatException);
     });
   });
+
+  group('AuthRepository.updatePatientProfile', () {
+    test('converts the PATCH response to PatientProfile', () async {
+      final api = _FakeAuthApi(response: _validJson);
+      final repository = _repository(api);
+
+      final profile = await repository.updatePatientProfile(
+        name: 'Patient',
+        gender: 'female',
+      );
+
+      expect(profile.name, 'Patient');
+      expect(api.updatedName, 'Patient');
+      expect(api.updatedGender, 'female');
+      expect(api.updatedBirthDate, isNull);
+    });
+
+    test('preserves an update ApiException', () async {
+      const exception = ApiException(message: 'forbidden', statusCode: 403);
+      final repository = _repository(_FakeAuthApi(error: exception));
+
+      await expectLater(
+        repository.updatePatientProfile(name: 'Patient'),
+        throwsA(same(exception)),
+      );
+    });
+  });
 }
 
 AuthRepository _repository(AuthApi authApi) {
@@ -57,6 +84,7 @@ const _validJson = <String, dynamic>{
   'hospital_name': 'Hospital',
   'assigned_doctor': 'doctor-uuid',
   'name': 'Patient',
+  'phone_number': '010-1234-5678',
 };
 
 class _FakeAuthApi extends AuthApi {
@@ -65,12 +93,28 @@ class _FakeAuthApi extends AuthApi {
 
   final dynamic response;
   final Object? error;
+  String? updatedName;
+  String? updatedBirthDate;
+  String? updatedGender;
 
   @override
   Future<dynamic> getPatientProfile() async {
     if (error != null) {
       throw error!;
     }
+    return response;
+  }
+
+  @override
+  Future<dynamic> updatePatientProfile({
+    String? name,
+    String? birthDate,
+    String? gender,
+  }) async {
+    if (error != null) throw error!;
+    updatedName = name;
+    updatedBirthDate = birthDate;
+    updatedGender = gender;
     return response;
   }
 }

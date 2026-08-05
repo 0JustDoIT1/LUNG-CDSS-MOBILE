@@ -15,4 +15,18 @@ class PatientResultsApi {
 
     return data;
   }
+
+  Future<Map<String, dynamic>> getMyResultDetail(String caseId) async {
+    if (caseId.trim().isEmpty) {
+      throw ArgumentError.value(caseId, 'caseId', '비어 있을 수 없습니다.');
+    }
+    final response = await _apiClient.get<dynamic>(
+      '/api/cases/my-results/$caseId/',
+    );
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('검사 결과 상세 응답은 객체여야 합니다.');
+    }
+    return data;
+  }
 }

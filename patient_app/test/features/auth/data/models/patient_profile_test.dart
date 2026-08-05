@@ -12,6 +12,7 @@ void main() {
       expect(profile.hospitalName, 'Hospital');
       expect(profile.assignedDoctorId, 'doctor-uuid');
       expect(profile.name, 'Patient');
+      expect(profile.phoneNumber, '010-1234-5678');
     });
 
     test('normalizes a null gender to null', () {
@@ -55,4 +56,5 @@ const _validJson = <String, dynamic>{
   'hospital_name': 'Hospital',
   'assigned_doctor': 'doctor-uuid',
   'name': 'Patient',
+  'phone_number': '010-1234-5678',
 };

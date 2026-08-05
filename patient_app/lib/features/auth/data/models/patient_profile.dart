@@ -6,6 +6,7 @@ class PatientProfile {
     required this.hospitalName,
     required this.assignedDoctorId,
     required this.name,
+    required this.phoneNumber,
   });
 
   factory PatientProfile.fromJson(Map<String, dynamic> json) {
@@ -23,6 +24,7 @@ class PatientProfile {
       hospitalName: _readString(json, 'hospital_name'),
       assignedDoctorId: _readNullableString(json, 'assigned_doctor'),
       name: _readString(json, 'name'),
+      phoneNumber: _readNullableString(json, 'phone_number'),
     );
   }
 
@@ -32,6 +34,7 @@ class PatientProfile {
   final String hospitalName;
   final String? assignedDoctorId;
   final String name;
+  final String? phoneNumber;
 
   static String _readString(Map<String, dynamic> json, String key) {
     final value = json[key];

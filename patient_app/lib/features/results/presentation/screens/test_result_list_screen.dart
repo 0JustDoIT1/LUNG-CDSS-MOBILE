@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_error_view.dart';
-import '../../data/models/patient_result_summary.dart';
+import '../../data/models/patient_result.dart';
 import '../providers/test_result_provider.dart';
 
 class TestResultListScreen extends ConsumerWidget {
@@ -48,7 +50,7 @@ class TestResultListScreen extends ConsumerWidget {
                   return const SizedBox(height: 14);
                 },
                 itemBuilder: (context, index) {
-                  return _PatientResultCard(result: results[index]);
+                  return _ApiPatientResultCard(result: results[index]);
                 },
               ),
             );
@@ -69,7 +71,7 @@ class TestResultListScreen extends ConsumerWidget {
       }
 
       if (error.statusCode == 403) {
-        return '검사 결과를 조회할 권한이 없거나 아직 공개되지 않았습니다.';
+        return '검사결과를 조회할 권한이 없습니다.';
       }
 
       if (error.code == 'TIMEOUT') {
@@ -266,93 +268,89 @@ class _ShimmerBone extends StatelessWidget {
   }
 }
 
-class _PatientResultCard extends StatelessWidget {
-  const _PatientResultCard({required this.result});
+class _ApiPatientResultCard extends StatelessWidget {
+  const _ApiPatientResultCard({required this.result});
 
-  final PatientResultSummary result;
-
-  String _formatDateTime(DateTime dateTime) {
-    final month = dateTime.month.toString().padLeft(2, '0');
-    final day = dateTime.day.toString().padLeft(2, '0');
-    final hour = dateTime.hour.toString().padLeft(2, '0');
-    final minute = dateTime.minute.toString().padLeft(2, '0');
-    return '${dateTime.year}.$month.$day $hour:$minute';
-  }
+  final PatientResult result;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    final displayDate = result.releasedAt ?? result.confirmedAt;
+    final detailPath = RouteNames.resultDetail.replaceFirst(
+      ':resultId',
+      Uri.encodeComponent(result.caseId),
+    );
+
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
+        side: const BorderSide(color: AppColors.border),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(
-              Icons.biotech_outlined,
-              color: AppColors.primary,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (result.specimenId != null) ...[
-                  _ResultField(
-                    label: '검체 ID',
-                    value: result.specimenId!,
-                    emphasize: true,
-                  ),
-                ],
-                if (result.finalSubtype != null) ...[
-                  if (result.specimenId != null) const SizedBox(height: 12),
-                  _ResultField(
-                    label: '최종 결과',
-                    value: result.finalSubtype!,
-                    emphasize: true,
-                  ),
-                ],
-                if (result.finalNote != null) ...[
-                  if (result.specimenId != null || result.finalSubtype != null)
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push(detailPath),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.biotech_outlined,
+                  color: AppColors.primary,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _ResultField(
+                      label: '검체번호',
+                      value: result.specimenId,
+                      emphasize: true,
+                    ),
                     const SizedBox(height: 12),
-                  _ResultField(
-                    label: '환자 안내문',
-                    value: result.finalNote!,
-                    maxLines: 3,
-                  ),
-                ],
-                if (result.confirmedAt != null) ...[
-                  const SizedBox(height: 12),
-                  _ResultField(
-                    label: '확정일',
-                    value: _formatDateTime(result.confirmedAt!),
-                  ),
-                ],
-                if (result.releasedAt != null) ...[
-                  const SizedBox(height: 8),
-                  _ResultField(
-                    label: '공개일',
-                    value: _formatDateTime(result.releasedAt!),
-                  ),
-                ],
-              ],
-            ),
+                    _ResultField(
+                      label: '최종 결과',
+                      value: patientResultListLabel(result.finalSubtype),
+                      emphasize: true,
+                    ),
+                    if (displayDate != null) ...[
+                      const SizedBox(height: 12),
+                      _ResultField(
+                        label: result.releasedAt != null ? '공개일' : '확정일',
+                        value: _formatResultDateTime(displayDate),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(top: 14),
+                child: Icon(Icons.chevron_right_rounded),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
+  }
+
+  String _formatResultDateTime(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '${value.year}.$month.$day $hour:$minute';
   }
 }
 
@@ -361,13 +359,11 @@ class _ResultField extends StatelessWidget {
     required this.label,
     required this.value,
     this.emphasize = false,
-    this.maxLines,
   });
 
   final String label;
   final String value;
   final bool emphasize;
-  final int? maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -383,8 +379,6 @@ class _ResultField extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           value,
-          maxLines: maxLines,
-          overflow: maxLines == null ? null : TextOverflow.ellipsis,
           style: AppTextStyles.bodyMedium.copyWith(
             color: emphasize ? AppColors.primary : null,
             fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,

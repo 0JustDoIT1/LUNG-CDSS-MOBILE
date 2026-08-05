@@ -1,4 +1,4 @@
-import 'models/patient_result_summary.dart';
+import 'models/patient_result.dart';
 import 'patient_results_api.dart';
 
 class PatientResultsRepository {
@@ -7,19 +7,24 @@ class PatientResultsRepository {
 
   final PatientResultsApi _patientResultsApi;
 
-  Future<List<PatientResultSummary>> getMyResults() async {
+  Future<List<PatientResult>> fetchMyResults() async {
     final results = await _patientResultsApi.getMyResults();
     return parseResults(results);
   }
 
-  static List<PatientResultSummary> parseResults(List<dynamic> results) {
+  Future<PatientResult> fetchMyResultDetail(String caseId) async {
+    final result = await _patientResultsApi.getMyResultDetail(caseId);
+    return PatientResult.fromJson(result);
+  }
+
+  static List<PatientResult> parseResults(List<dynamic> results) {
     return results
         .map((item) {
           if (item is! Map<String, dynamic>) {
             throw const FormatException('검사 결과 목록의 각 항목은 객체여야 합니다.');
           }
 
-          return PatientResultSummary.fromJson(item);
+          return PatientResult.fromJson(item);
         })
         .toList(growable: false);
   }

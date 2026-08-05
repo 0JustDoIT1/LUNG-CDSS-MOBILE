@@ -22,7 +22,12 @@ class AuthApi {
     required String birthDate,
     required String hospitalId,
     required String phoneNumber,
+    required String gender,
   }) async {
+    if (gender != 'female' && gender != 'male') {
+      throw ArgumentError.value(gender, 'gender', 'male 또는 female이어야 합니다.');
+    }
+
     final response = await _apiClient.post<Map<String, dynamic>>(
       '/api/auth/patient/register/',
       data: {
@@ -30,6 +35,7 @@ class AuthApi {
         'birth_date': birthDate,
         'hospital_id': hospitalId,
         'phone_number': phoneNumber,
+        'gender': gender,
       },
     );
 
@@ -49,6 +55,28 @@ class AuthApi {
       '/api/auth/patient/profile/',
     );
 
+    return response.data;
+  }
+
+  Future<dynamic> updatePatientProfile({
+    String? name,
+    String? birthDate,
+    String? gender,
+  }) async {
+    if (gender != null && gender != 'male' && gender != 'female') {
+      throw ArgumentError.value(gender, 'gender', 'male 또는 female이어야 합니다.');
+    }
+
+    final data = <String, dynamic>{
+      'name': ?name,
+      'birth_date': ?birthDate,
+      'gender': ?gender,
+    };
+
+    final response = await _apiClient.patch<dynamic>(
+      '/api/auth/patient/profile/',
+      data: data,
+    );
     return response.data;
   }
 
