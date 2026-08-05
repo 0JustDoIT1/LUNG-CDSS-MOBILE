@@ -77,7 +77,7 @@ class _SymptomRecordFormScreenState
   static String _errorMessage(Object error) {
     if (error is ApiException) {
       if (error.statusCode == 400) {
-        return '입력한 증상 정보를 확인해주세요.';
+        return '입력한 증상 정보를 확인해 주세요.';
       }
       if (error.statusCode == 401) {
         return '인증 정보가 만료됐거나 유효하지 않습니다.';
@@ -86,10 +86,10 @@ class _SymptomRecordFormScreenState
         return '증상 정보를 제출할 권한이 없습니다.';
       }
       if (error.code == 'TIMEOUT') {
-        return '서버 응답 시간이 초과되었습니다.';
+        return '요청 시간이 초과되었습니다.';
       }
       if (error.code == 'CONNECTION_ERROR') {
-        return '네트워크 연결을 확인해주세요.';
+        return '네트워크 연결을 확인해 주세요.';
       }
     }
     return '증상 정보를 제출하지 못했습니다.';
@@ -153,6 +153,16 @@ class _SymptomRecordFormScreenState
               isLoading: isSubmitting,
               onPressed: !_isComplete || isSubmitting ? null : _submit,
             ),
+            if (!_isComplete) ...[
+              const SizedBox(height: 10),
+              Text(
+                '모든 증상 항목을 선택해 주세요.',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
           ],
         ),
       ),

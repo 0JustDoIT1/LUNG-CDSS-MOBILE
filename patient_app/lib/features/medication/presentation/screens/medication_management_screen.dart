@@ -10,11 +10,28 @@ import '../../../../core/widgets/app_loading_view.dart';
 import '../../../symptom/data/models/medication_log.dart';
 import '../../../symptom/presentation/providers/symptom_medication_provider.dart';
 
-class MedicationManagementScreen extends ConsumerWidget {
+class MedicationManagementScreen extends ConsumerStatefulWidget {
   const MedicationManagementScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MedicationManagementScreen> createState() =>
+      _MedicationManagementScreenState();
+}
+
+class _MedicationManagementScreenState
+    extends ConsumerState<MedicationManagementScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(() {
+      if (mounted) {
+        ref.invalidate(todayMedicationLogsProvider);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final medicationState = ref.watch(todayMedicationLogsProvider);
     final processingMedicationIds = ref.watch(medicationTakenProvider);
 
