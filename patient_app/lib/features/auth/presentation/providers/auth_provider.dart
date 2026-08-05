@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../data/models/auth_state.dart';
@@ -16,9 +18,12 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   @override
   Future<AuthState> build() async {
     final repository = ref.read(authRepositoryProvider);
+    final deviceTokenService = ref.read(deviceTokenServiceProvider);
+    deviceTokenService.start();
     final hasAccessToken = await repository.hasAccessToken();
 
     if (hasAccessToken) {
+      unawaited(deviceTokenService.tryRegisterCurrentDevice());
       return const AuthState(
         isLoggedIn: true,
         isNewUser: false,
@@ -49,6 +54,9 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       );
 
       if (result.isExistingMember) {
+        final deviceTokenService = ref.read(deviceTokenServiceProvider);
+        deviceTokenService.start();
+        unawaited(deviceTokenService.tryRegisterCurrentDevice());
         return const AuthState(
           isLoggedIn: true,
           isNewUser: false,
@@ -91,6 +99,10 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
         gender: gender,
       );
 
+      final deviceTokenService = ref.read(deviceTokenServiceProvider);
+      deviceTokenService.start();
+      unawaited(deviceTokenService.tryRegisterCurrentDevice());
+
       return const AuthState(
         isLoggedIn: true,
         isNewUser: false,
@@ -128,8 +140,10 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   Future<void> signOut() async {
     final repository = ref.read(authRepositoryProvider);
     final googleSignInService = ref.read(googleSignInServiceProvider);
+    final deviceTokenService = ref.read(deviceTokenServiceProvider);
 
     try {
+      await deviceTokenService.tryUnregisterCurrentDevice();
       await repository.logout();
       await googleSignInService.signOut();
     } finally {
