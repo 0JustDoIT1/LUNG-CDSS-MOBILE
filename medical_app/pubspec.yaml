@@ -50,6 +50,7 @@ dependencies:
 
   # 서버 API 연동
   http: ^1.2.2
+  web_socket_channel: ^3.0.1 # 실시간 채팅(WS)
 
   # 한국어 로케일 (날짜선택 등 시스템 다이얼로그 한글화)
   flutter_localizations:

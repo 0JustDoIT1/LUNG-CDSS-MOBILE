@@ -1,18 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/api/appointments_api.dart';
 import '../../../../core/api/auth_api.dart';
+import '../../../../core/api/medications_api.dart';
 import '../../../../core/api/symptoms_api.dart';
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../models/reservation.dart';
 import '../care_plan_medication_screen.dart';
 import '../symptom_checks_screen.dart';
 
 /// 탭 3(중앙): 홈 대시보드.
-/// "담당환자 이상 신호"는 실제 API(GET /api/symptoms/checks/nurse-visible/) 연동됨.
-/// 나머지(예약요약/다음방문/케어플랜)는 아직 mock.
+/// "담당환자 이상 신호"(GET /api/symptoms/checks/nurse-visible/),
+/// "케어플랜 처리 필요"(GET /api/medications/pending-setup/) 실제 API 연동됨.
+/// 나머지(예약요약/다음방문)는 아직 mock.
 class NurseHomeTab extends StatefulWidget {
-  const NurseHomeTab({super.key});
+  final ValueChanged<int> onNavigateToTab;
+
+  const NurseHomeTab({super.key, required this.onNavigateToTab});
 
   @override
   State<NurseHomeTab> createState() => _NurseHomeTabState();
@@ -20,14 +26,16 @@ class NurseHomeTab extends StatefulWidget {
 
 class _NurseHomeTabState extends State<NurseHomeTab> {
   List<SymptomCheck> _riskChecks = [];
-
+  List<PendingMedicationSetupPatient> _pendingSetup = [];
+  List<Appointment> _queue = [];
+  List<Appointment> _todayVisits = [];
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadRisk());
   }
 
-  Future<void> _loadRisk() async {
+Future<void> _loadRisk() async {
     final token = context.read<SessionController>().accessToken;
     if (token == null) return;
     try {
@@ -41,6 +49,42 @@ class _NurseHomeTabState extends State<NurseHomeTab> {
     } on ApiException catch (_) {
       // 조용히 무시 — 이 섹션만 비어보이면 됨
     }
+
+    try {
+      final pendingSetup = await fetchPendingMedicationSetupPatients(token);
+      if (!mounted) return;
+      setState(() => _pendingSetup = pendingSetup);
+    } on ApiException catch (_) {
+      // 조용히 무시 — 이 섹션만 비어보이면 됨
+    }
+
+    try {
+      final queue = await fetchAppointmentQueue(token);
+      if (!mounted) return;
+      setState(() => _queue = queue);
+    } on ApiException catch (_) {
+      // 조용히 무시 — 카운트만 0으로 표시됨
+    }
+
+    try {
+      final visits = await fetchTodayVisits(token);
+      if (!mounted) return;
+      setState(() => _todayVisits = visits);
+    } on ApiException catch (_) {
+      // 조용히 무시
+    }
+  }
+
+  List<Appointment> get _unprocessedTodayVisits => _todayVisits.where((a) =>
+      a.status == AppointmentStatus.confirmed ||
+      a.status == AppointmentStatus.remindedD7 ||
+      a.status == AppointmentStatus.remindedD1).toList();
+
+  Appointment? get _nextVisit {
+    final now = DateTime.now();
+    final upcoming = _unprocessedTodayVisits.where((a) => a.displaySlot.isAfter(now)).toList()
+      ..sort((a, b) => a.displaySlot.compareTo(b.displaySlot));
+    return upcoming.isEmpty ? null : upcoming.first;
   }
 
   @override
@@ -53,14 +97,25 @@ class _NurseHomeTabState extends State<NurseHomeTab> {
           children: [
             _GreetingHeader(),
             const SizedBox(height: 16),
-            const _SummaryRow(),
+            _SummaryRow(
+              pendingRequestCount: _queue.length,
+              unprocessedTodayCount: _unprocessedTodayVisits.length,
+              onNavigateToTab: widget.onNavigateToTab,
+            ),
             const SizedBox(height: 16),
-            const _NextVisitCard(),
+            _NextVisitCard(appointment: _nextVisit),
             const SizedBox(height: 24),
+            
             _SectionTitle('케어플랜 처리 필요'),
             const SizedBox(height: 8),
-            const _CarePlanTile(name: '홍길동', subtitle: '치료계획 확정 · 복약설정 대기'),
-            const _CarePlanTile(name: '이순신', subtitle: '치료계획 확정 · 복약설정 대기'),
+            if (_pendingSetup.isEmpty)
+              Text('복약설정이 필요한 환자가 없어요', style: TextStyle(color: Colors.grey.shade500))
+            else
+              ..._pendingSetup.map((p) => _CarePlanTile(
+                    name: p.name,
+                    subtitle: '치료계획 확정 · 복약설정 대기',
+                    patientId: p.id,
+                  )),
             const SizedBox(height: 24),
             _SectionTitle('담당환자 이상 신호'),
             const SizedBox(height: 8),
@@ -96,7 +151,15 @@ class _GreetingHeader extends StatelessWidget {
 }
 
 class _SummaryRow extends StatelessWidget {
-  const _SummaryRow();
+  final int pendingRequestCount;
+  final int unprocessedTodayCount;
+  final ValueChanged<int> onNavigateToTab;
+
+  const _SummaryRow({
+    required this.pendingRequestCount,
+    required this.unprocessedTodayCount,
+    required this.onNavigateToTab,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -105,16 +168,18 @@ class _SummaryRow extends StatelessWidget {
         Expanded(
           child: _SummaryCard(
             title: '예약요청 대기',
-            value: '5건',
-            highlighted: true,
+            value: '$pendingRequestCount건',
+            highlighted: pendingRequestCount > 0,
+            onTap: () => onNavigateToTab(0), // 예약관리 탭
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: _SummaryCard(
             title: '미방문/방문처리',
-            value: '3건',
+            value: '$unprocessedTodayCount건',
             highlighted: false,
+            onTap: () => onNavigateToTab(0), // 예약관리 탭
           ),
         ),
       ],
@@ -126,52 +191,69 @@ class _SummaryCard extends StatelessWidget {
   final String title;
   final String value;
   final bool highlighted;
+  final VoidCallback onTap;
 
   const _SummaryCard({
     required this.title,
     required this.value,
     required this.highlighted,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: highlighted ? Colors.orange.shade50 : Colors.grey.shade100,
+    return Material(
+      color: highlighted ? Colors.orange.shade50 : Colors.grey.shade100,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 13,
-              color: highlighted ? Colors.orange.shade700 : Colors.grey.shade600,
-            ),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Stack(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: highlighted ? Colors.orange.shade700 : Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: highlighted ? Colors.orange.shade800 : Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Icon(
+                  Icons.chevron_right,
+                  color: highlighted ? Colors.orange.shade300 : Colors.grey.shade400,
+                  size: 20,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: highlighted ? Colors.orange.shade800 : Colors.black87,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// 다음 방문 예정 — 가장 가까운 체크인 대상 1건만 크게 강조.
-/// TODO: 실제 연결 시 mock 대신 오늘 예약 중 가장 가까운 대기중 건으로 교체.
 class _NextVisitCard extends StatelessWidget {
-  const _NextVisitCard();
+  final Appointment? appointment;
 
-  DateTime get _mockNextVisit => DateTime.now().add(const Duration(minutes: 20));
+  const _NextVisitCard({required this.appointment});
 
   String _countdownLabel(DateTime target) {
     final diff = target.difference(DateTime.now());
@@ -185,11 +267,9 @@ class _NextVisitCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final a = appointment;
     const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
-    final visit = _mockNextVisit;
-    final dateLabel = '${visit.month}월 ${visit.day}일 (${weekdays[visit.weekday - 1]})';
     String two(int n) => n.toString().padLeft(2, '0');
-    final timeLabel = '${two(visit.hour)}:${two(visit.minute)}';
 
     return Container(
       width: double.infinity,
@@ -214,52 +294,58 @@ class _NextVisitCard extends StatelessWidget {
                   color: Colors.black87,
                 ),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppTheme.seed,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _countdownLabel(visit),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+              if (a != null) ...[
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.seed,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _countdownLabel(a.displaySlot),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
           const SizedBox(height: 16),
-          Text(
-            dateLabel,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Colors.black54,
+          if (a == null)
+            Text('오늘 남은 방문이 없어요', style: TextStyle(color: Colors.grey.shade500))
+          else ...[
+            Text(
+              '${a.displaySlot.month}월 ${a.displaySlot.day}일 (${weekdays[a.displaySlot.weekday - 1]})',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.black54,
+              ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            timeLabel,
-            style: const TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-              height: 1.0,
+            const SizedBox(height: 2),
+            Text(
+              '${two(a.displaySlot.hour)}:${two(a.displaySlot.minute)}',
+              style: const TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+                height: 1.0,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            '이순신님',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
+            const SizedBox(height: 6),
+            Text(
+              '${a.patientName}님',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -283,20 +369,28 @@ class _SectionTitle extends StatelessWidget {
 class _CarePlanTile extends StatelessWidget {
   final String name;
   final String subtitle;
-
-  const _CarePlanTile({required this.name, required this.subtitle});
+  final String? patientId; // null이면 UUID 매칭 실패 — 탭 비활성화
+  const _CarePlanTile({required this.name, required this.subtitle, required this.patientId});
 
   @override
   Widget build(BuildContext context) {
+    final enabled = patientId != null;
     return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => CarePlanMedicationScreen(patientName: name),
-          ),
-        );
-      },
-      child: Container(
+      onTap: enabled
+          ? () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => CarePlanMedicationScreen(
+                    patientId: patientId!,
+                    patientName: name,
+                  ),
+                ),
+              );
+            }
+          : null,
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.5,
+        child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -322,6 +416,7 @@ class _CarePlanTile extends StatelessWidget {
             Icon(Icons.chevron_right, color: Colors.orange.shade300),
           ],
         ),
+      ),
       ),
     );
   }

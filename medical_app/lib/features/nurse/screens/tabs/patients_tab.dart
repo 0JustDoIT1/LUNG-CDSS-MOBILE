@@ -6,12 +6,14 @@ import '../../../../core/api/symptoms_api.dart';
 import '../../../../core/auth/session_controller.dart';
 import '../../mock/patient_overview_mock.dart';
 import '../../models/patient_overview.dart';
+import '../../models/staff_patient.dart';
 import '../nurse_patient_detail_screen.dart';
 import '../symptom_checks_screen.dart';
 
 /// 탭 2: 담당환자 목록.
-/// 환자 명단 자체는 아직 mock(담당환자 목록 API 확인 전)이지만,
-/// "확인필요" 표시는 실제 증상위험도 API(GET /api/symptoms/checks/nurse-visible/) 기반.
+/// 환자 명단은 실제 API(GET /api/auth/staff/patients/) 기반.
+/// "확인필요" 표시는 증상위험도 API(GET /api/symptoms/checks/nurse-visible/) 기반.
+/// 복약현황(오늘 복약 X/N)은 조회 API 미확정이라 아직 mock 유지.
 class NursePatientsTab extends StatefulWidget {
   const NursePatientsTab({super.key});
 
@@ -20,19 +22,34 @@ class NursePatientsTab extends StatefulWidget {
 }
 
 class _NursePatientsTabState extends State<NursePatientsTab> {
-  static const _patientNames = ['홍길동', '이순신', '최민수'];
-
+  List<StaffPatient> _patients = [];
   List<SymptomCheck> _riskChecks = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRisk());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
-  Future<void> _loadRisk() async {
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     final token = context.read<SessionController>().accessToken;
     if (token == null) return;
+
+    try {
+      final patients = await fetchStaffPatients(token);
+      if (!mounted) return;
+      setState(() => _patients = patients);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = e.message);
+    }
+
     try {
       final checks = await fetchNurseVisibleSymptomChecks(token);
       if (!mounted) return;
@@ -40,6 +57,9 @@ class _NursePatientsTabState extends State<NursePatientsTab> {
     } on ApiException catch (_) {
       // 위험도 정보 로드 실패는 조용히 무시 (목록 자체는 계속 보여줘야 하니까)
     }
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
   }
 
   bool _needsAttention(String name) =>
@@ -47,65 +67,85 @@ class _NursePatientsTabState extends State<NursePatientsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final patients = _patientNames.map((name) {
-      final overview = mockNursePatientOverview(name);
-      return NursePatientOverview(
-        name: overview.name,
-        needsAttention: _needsAttention(name),
-        todayDoses: overview.todayDoses,
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            const SizedBox(height: 8),
+            TextButton(onPressed: _load, child: const Text('다시 시도')),
+          ],
+        ),
       );
-    }).toList();
+    }
 
     final unreadRiskCount = _riskChecks.where((c) => !c.nurseReviewed).length;
 
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Text(
-            '담당환자 목록',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '호흡기내과 · ${patients.length}명',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 12),
-          if (unreadRiskCount > 0)
-            GestureDetector(
-              onTap: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SymptomChecksScreen()),
-                );
-                _loadRisk();
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.priority_high, color: Colors.red.shade700, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '증상 위험 신호 $unreadRiskCount건 — 확인이 필요해요',
-                        style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w600),
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: SafeArea(
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            const Text(
+              '담당환자 목록',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '호흡기내과 · ${_patients.length}명',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 12),
+            if (unreadRiskCount > 0)
+              GestureDetector(
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SymptomChecksScreen()),
+                  );
+                  _load();
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.priority_high, color: Colors.red.shade700, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '증상 위험 신호 $unreadRiskCount건 — 확인이 필요해요',
+                          style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w600),
+                        ),
                       ),
-                    ),
-                    Icon(Icons.chevron_right, color: Colors.red.shade700, size: 18),
-                  ],
+                      Icon(Icons.chevron_right, color: Colors.red.shade700, size: 18),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ...patients.map((p) => _PatientCard(patient: p)),
-        ],
+            ..._patients.map((p) {
+              final overview = mockNursePatientOverview(p.name);
+              final displayOverview = NursePatientOverview(
+                name: overview.name,
+                needsAttention: _needsAttention(p.name),
+                todayDoses: overview.todayDoses,
+              );
+              return _PatientCard(patient: displayOverview, patientId: p.id);
+            }),
+          ],
+        ),
       ),
     );
   }
@@ -113,8 +153,9 @@ class _NursePatientsTabState extends State<NursePatientsTab> {
 
 class _PatientCard extends StatefulWidget {
   final NursePatientOverview patient;
+  final String patientId;
 
-  const _PatientCard({required this.patient});
+  const _PatientCard({required this.patient, required this.patientId});
 
   @override
   State<_PatientCard> createState() => _PatientCardState();
@@ -126,7 +167,7 @@ class _PatientCardState extends State<_PatientCard> {
   Color get _subtitleColor {
     final p = widget.patient;
     if (!p.hasSchedule) return Colors.grey.shade400;
-    if (p.takenCount == p.totalCount) return Colors.lightBlue.shade400; // 복약 완료 → 하늘색
+    if (p.takenCount == p.totalCount) return Colors.lightBlue.shade400;
     return Colors.orange.shade700;
   }
 
@@ -138,7 +179,10 @@ class _PatientCardState extends State<_PatientCard> {
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => NursePatientDetailScreen(patientName: patient.name),
+            builder: (_) => NursePatientDetailScreen(
+              patientId: widget.patientId,
+              patientName: patient.name,
+            ),
           ),
         );
       },
@@ -180,10 +224,7 @@ class _PatientCardState extends State<_PatientCard> {
                 children: [
                   Text(patient.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
-                  Text(
-                    patient.subtitle,
-                    style: TextStyle(fontSize: 12, color: _subtitleColor),
-                  ),
+                  Text(patient.subtitle, style: TextStyle(fontSize: 12, color: _subtitleColor)),
                 ],
               ),
             ),
@@ -191,11 +232,7 @@ class _PatientCardState extends State<_PatientCard> {
               Chip(
                 label: const Text('확인필요'),
                 backgroundColor: Colors.orange.shade50,
-                labelStyle: TextStyle(
-                  color: Colors.orange.shade800,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+                labelStyle: TextStyle(color: Colors.orange.shade800, fontSize: 12, fontWeight: FontWeight.w600),
                 side: BorderSide.none,
               ),
           ],

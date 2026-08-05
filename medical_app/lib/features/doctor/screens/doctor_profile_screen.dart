@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../mock/doctor_profile_mock.dart';
+import '../../../core/api/auth_api.dart';
+import '../../../core/auth/session_controller.dart';
 import '../models/doctor_profile.dart';
 
-/// 내 프로필 설정.
+/// 내 프로필 설정. GET /api/auth/doctor/profile/ + GET /api/auth/hospital/ 연동됨.
 /// - 프로필사진: 업로드/변경 (GCS → DoctorProfile.photo_url)
 /// - 전문분야 태그: 자유 태그 추가/삭제 (DoctorProfile.specialty_tags)
-/// - 기본정보: 이름, 소속병원, 과, 면허번호(확인 상태만 표시, 읽기전용)
+/// - 기본정보: 이름(로그인응답), 소속병원, 진료과·면허번호(서버 조회만 가능, 읽기전용)
 ///
-/// TODO: 실제 연결 시 사진 업로드는 image_picker + GCS 업로드 API 연결,
-/// 태그/저장은 DoctorProfile 수정 API 연결.
+/// TODO: 실제 연결 시 사진 업로드는 image_picker + GCS 업로드 API 연결.
 class DoctorProfileScreen extends StatefulWidget {
   const DoctorProfileScreen({super.key});
 
@@ -18,7 +19,49 @@ class DoctorProfileScreen extends StatefulWidget {
 }
 
 class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
-  late DoctorProfile _profile = mockDoctorProfile();
+  DoctorProfile? _profile;
+  bool _isLoading = true;
+  bool _isSaving = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final session = context.read<SessionController>();
+    final token = session.accessToken;
+    if (token == null) return;
+
+    try {
+      final results = await Future.wait([fetchDoctorProfile(token), fetchHospital()]);
+      final profileData = results[0] as DoctorProfileData;
+      final hospital = results[1] as Hospital;
+      if (!mounted) return;
+      setState(() {
+        _profile = DoctorProfile(
+          name: session.name,
+          hospital: hospital.name,
+          department: profileData.department,
+          licenseNumber: profileData.licenseNumber,
+          photoUrl: profileData.photoUrl,
+          specialtyTags: profileData.specialtyTags,
+        );
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = e.message);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   void _addTag() async {
     final controller = TextEditingController();
@@ -47,19 +90,20 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
 
     final text = result?.trim();
     if (text == null || text.isEmpty) return;
-    if (_profile.specialtyTags.contains(text)) return;
+    final profile = _profile;
+    if (profile == null || profile.specialtyTags.contains(text)) return;
 
     setState(() {
-      _profile = _profile.copyWith(
-        specialtyTags: [..._profile.specialtyTags, text],
-      );
+      _profile = profile.copyWith(specialtyTags: [...profile.specialtyTags, text]);
     });
   }
 
   void _removeTag(String tag) {
+    final profile = _profile;
+    if (profile == null) return;
     setState(() {
-      _profile = _profile.copyWith(
-        specialtyTags: _profile.specialtyTags.where((t) => t != tag).toList(),
+      _profile = profile.copyWith(
+        specialtyTags: profile.specialtyTags.where((t) => t != tag).toList(),
       );
     });
   }
@@ -71,15 +115,54 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
     // TODO: image_picker로 사진 선택 → GCS 업로드 → photo_url 갱신
   }
 
-  void _save() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('프로필이 저장됐어요')),
-    );
-    // TODO: DoctorProfile 저장 API 연결
+  Future<void> _save() async {
+    final profile = _profile;
+    final token = context.read<SessionController>().accessToken;
+    if (profile == null || token == null) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await updateDoctorProfile(
+        accessToken: token,
+        specialtyTags: profile.specialtyTags,
+        photoUrl: profile.photoUrl,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('프로필이 저장됐어요')),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (_errorMessage != null || _profile == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('내 프로필 설정')),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_errorMessage ?? '프로필을 불러오지 못했어요.', style: TextStyle(color: Colors.grey.shade600)),
+              const SizedBox(height: 8),
+              TextButton(onPressed: _load, child: const Text('다시 시도')),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final profile = _profile!;
+
     return Scaffold(
       appBar: AppBar(title: const Text('내 프로필 설정')),
       body: SafeArea(
@@ -111,13 +194,13 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _InfoRow(label: '이름', value: _profile.name),
+                        _InfoRow(label: '이름', value: profile.name),
                         const SizedBox(height: 12),
-                        _InfoRow(label: '소속병원', value: _profile.hospital),
+                        _InfoRow(label: '소속병원', value: profile.hospital),
                         const SizedBox(height: 12),
-                        _InfoRow(label: '진료과', value: _profile.department),
+                        _InfoRow(label: '진료과', value: profile.department, muted: true),
                         const SizedBox(height: 12),
-                        _InfoRow(label: '면허번호', value: '확인완료', muted: true),
+                        _InfoRow(label: '면허번호', value: profile.licenseNumber, muted: true),
                       ],
                     ),
                   ),
@@ -129,7 +212,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      ..._profile.specialtyTags.map(
+                      ...profile.specialtyTags.map(
                         (tag) => Chip(
                           label: Text(tag),
                           onDeleted: () => _removeTag(tag),
@@ -161,8 +244,14 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: _save,
-                  child: const Text('저장'),
+                  onPressed: _isSaving ? null : _save,
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('저장'),
                 ),
               ),
             ),

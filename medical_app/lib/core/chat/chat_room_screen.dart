@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../../../core/theme/app_theme.dart';
-import '../mock/chat_mock.dart';
-import '../models/chat.dart';
+import '../api/auth_api.dart';
+import '../api/communication_api.dart';
+import '../auth/session_controller.dart';
+import '../theme/app_theme.dart';
 
-/// 채팅방. 메시지 전송은 지금 로컬 상태에만 추가됨(새로고침하면 초기화).
+/// 채팅방. 의사/간호사 공용 화면 (상대가 의사든 간호사든 동일).
+/// - 진입 시 GET .../messages/로 과거 히스토리 로딩
+/// - 이후 WS(wss://.../ws/chat/{thread_id})로 연결해 실시간 송수신
+/// - 메시지 전송은 WS로 보냄(REST로 보내면 저장은 되지만 실시간 전파가 안 됨)
 /// - @멘션: 입력창 '@' 버튼으로 상대방 이름 삽입, 말풍선에서 @이름 굵게 강조
-/// - 읽음/안읽음: 내가 보낸 메시지에 '읽음'(회색) 또는 안읽음 뱃지 표시
-/// TODO: 실제 연결 시 WebSocket/API로 교체 — 채널 구독, 실시간 읽음처리, 음성메시지 등.
 class ChatRoomScreen extends StatefulWidget {
   final ChatThread thread;
 
@@ -18,19 +21,89 @@ class ChatRoomScreen extends StatefulWidget {
 }
 
 class _ChatRoomScreenState extends State<ChatRoomScreen> {
-  late final List<ChatMessage> _messages = mockMessagesFor(widget.thread.id);
+  final List<ChatMessage> _messages = [];
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  ChatSocket? _socket;
+  String? _myUserId;
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
   @override
   void dispose() {
+    _socket?.dispose();
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final session = context.read<SessionController>();
+    final token = session.accessToken;
+    if (token == null) return;
+    _myUserId = session.myUserId;
+
+    try {
+      final history = await fetchChatMessages(widget.thread.id, token);
+      if (!mounted) return;
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(history);
+        _isLoading = false;
+      });
+      _scrollToBottom(animated: false);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.message;
+      });
+      return;
+    }
+
+    _socket?.dispose();
+    _socket = ChatSocket(
+      threadId: widget.thread.id,
+      accessToken: token,
+      onMessage: (message) {
+        if (!mounted) return;
+        setState(() => _messages.add(message));
+        _scrollToBottom(animated: true);
+      },
+    )..connect();
+  }
+
+  void _scrollToBottom({required bool animated}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      final target = _scrollController.position.maxScrollExtent;
+      if (animated) {
+        _scrollController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _scrollController.jumpTo(target);
+      }
+    });
+  }
+
   void _insertMention() {
-    final mention = '@${widget.thread.partnerName} ';
+    final mention = '@${widget.thread.otherParticipantName} ';
     final text = _inputController.text;
     final selection = _inputController.selection;
     final insertAt = selection.start >= 0 ? selection.start : text.length;
@@ -44,66 +117,68 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   void _send() {
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
-
-    setState(() {
-      _messages.add(ChatMessage(
-        senderName: '나',
-        isMe: true,
-        text: text,
-        sentAt: DateTime.now(),
-      ));
-      _inputController.clear();
-    });
-
-    // TODO: 메시지 전송 API/WebSocket 연결
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.thread.partnerName)),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final message = _messages[index];
-                final showDateDivider = index == 0 ||
-                    !_isSameDay(_messages[index - 1].sentAt, message.sentAt);
-                return Column(
-                  children: [
-                    if (showDateDivider) _DateDivider(date: message.sentAt),
-                    _MessageBubble(message: message),
-                  ],
-                );
-              },
-            ),
-          ),
-          _MessageInputBar(
-            controller: _inputController,
-            onSend: _send,
-            onMention: _insertMention,
-          ),
-        ],
-      ),
-    );
+    _socket?.send(text);
+    _inputController.clear();
   }
 
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.thread.otherParticipantName)),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            const SizedBox(height: 8),
+            TextButton(onPressed: _load, child: const Text('다시 시도')),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(16),
+            itemCount: _messages.length,
+            itemBuilder: (context, index) {
+              final message = _messages[index];
+              final isMe = message.sender == _myUserId;
+              final showDateDivider =
+                  index == 0 || !_isSameDay(_messages[index - 1].createdAt, message.createdAt);
+              return Column(
+                children: [
+                  if (showDateDivider) _DateDivider(date: message.createdAt),
+                  _MessageBubble(message: message, isMe: isMe),
+                ],
+              );
+            },
+          ),
+        ),
+        _MessageInputBar(
+          controller: _inputController,
+          onSend: _send,
+          onMention: _insertMention,
+        ),
+      ],
+    );
+  }
 }
 
 class _DateDivider extends StatelessWidget {
@@ -162,32 +237,33 @@ List<InlineSpan> _buildMentionSpans(String text, {required bool isMe}) {
 
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
+  final bool isMe;
 
-  const _MessageBubble({required this.message});
+  const _MessageBubble({required this.message, required this.isMe});
 
   @override
   Widget build(BuildContext context) {
     String two(int n) => n.toString().padLeft(2, '0');
-    final timeLabel = '${two(message.sentAt.hour)}:${two(message.sentAt.minute)}';
+    final timeLabel = '${two(message.createdAt.hour)}:${two(message.createdAt.minute)}';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: message.isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!message.isMe) ...[
+          if (!isMe) ...[
             CircleAvatar(
               radius: 14,
               backgroundColor: Colors.grey.shade300,
               child: Text(
-                message.senderName.substring(0, 1),
+                message.senderName.isNotEmpty ? message.senderName.substring(0, 1) : '?',
                 style: const TextStyle(fontSize: 12, color: Colors.black54),
               ),
             ),
             const SizedBox(width: 8),
           ],
-          if (message.isMe) ...[
+          if (isMe) ...[
             Text(timeLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
             const SizedBox(width: 6),
           ],
@@ -195,21 +271,21 @@ class _MessageBubble extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: message.isMe ? AppTheme.seed : Colors.grey.shade100,
+                color: isMe ? AppTheme.seed : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: RichText(
                 text: TextSpan(
                   style: TextStyle(
-                    color: message.isMe ? Colors.white : Colors.black87,
+                    color: isMe ? Colors.white : Colors.black87,
                     fontSize: 14,
                   ),
-                  children: _buildMentionSpans(message.text, isMe: message.isMe),
+                  children: _buildMentionSpans(message.content, isMe: isMe),
                 ),
               ),
             ),
           ),
-          if (!message.isMe) ...[
+          if (!isMe) ...[
             const SizedBox(width: 6),
             Text(timeLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
           ],

@@ -15,9 +15,10 @@ Future<List<Appointment>> fetchTodayVisits(String accessToken) async {
   return _fetchAppointmentList('$apiBaseUrl/api/appointments/today-visits/', accessToken);
 }
 
-/// GET /api/appointments/mine/ — 의사 본인 일정.
+/// GET /api/appointments/doctor/mine/ — 의사 본인 일정.
+/// (주의: /api/appointments/mine/은 환자 전용이라 의사 토큰으로 부르면 403 남)
 Future<List<Appointment>> fetchMyAppointments(String accessToken) async {
-  return _fetchAppointmentList('$apiBaseUrl/api/appointments/mine/', accessToken);
+  return _fetchAppointmentList('$apiBaseUrl/api/appointments/doctor/mine/', accessToken);
 }
 
 Future<List<Appointment>> _fetchAppointmentList(String url, String accessToken) async {
@@ -49,15 +50,19 @@ Future<void> _postAction(String url, String accessToken) async {
   }
 }
 
-/// GET /api/appointments/mine/ — 의사 본인 일정 (원본 JSON, 각 role이 자기 Appointment.fromJson으로 파싱).
+/// GET /api/appointments/doctor/mine/ — 의사 본인 일정 (원본 JSON, 각 role이 자기 Appointment.fromJson으로 파싱).
+/// (주의: /api/appointments/mine/은 환자 전용이라 의사 토큰으로 부르면 403 남)
 Future<List<Map<String, dynamic>>> fetchMyAppointmentsRaw(String accessToken) async {
   http.Response response;
   try {
     response = await http.get(
-      Uri.parse('$apiBaseUrl/api/appointments/mine/'),
+      Uri.parse('$apiBaseUrl/api/appointments/doctor/mine/'),
       headers: {'Authorization': 'Bearer $accessToken'},
     );
-  } catch (_) {
+  } catch (e, st) {
+    // 임시 디버그용
+    // ignore: avoid_print
+    print('❗ fetchMyAppointmentsRaw 예외: $e');
     throw ApiException('서버에 연결할 수 없어요. 네트워크 상태를 확인해주세요.');
   }
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'auth_api.dart';
 
@@ -82,3 +83,97 @@ Future<List<ChatThread>> fetchChatThreads(String accessToken) => _fetchList(
       accessToken,
       ChatThread.fromJson,
     );
+
+/// 채팅 메시지 한 건. REST 히스토리 응답과 WS로 오는 메시지가 동일한 구조(MessageSerializer 그대로).
+class ChatMessage {
+  final String id;
+  final String sender; // 발신자 user id (UUID) — SessionController.myUserId와 비교해 내 메시지인지 판단
+  final String senderName;
+  final String content;
+  final DateTime createdAt;
+
+  ChatMessage({
+    required this.id,
+    required this.sender,
+    required this.senderName,
+    required this.content,
+    required this.createdAt,
+  });
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    return ChatMessage(
+      id: json['id'] as String,
+      sender: json['sender'] as String,
+      senderName: json['sender_name'] as String? ?? '',
+      content: json['content'] as String? ?? '',
+      createdAt: DateTime.parse(json['created_at'] as String),
+    );
+  }
+}
+
+/// GET /api/communication/threads/{thread_id}/messages/ — 과거 메시지 히스토리(WS 연결 전 최초 로딩용).
+Future<List<ChatMessage>> fetchChatMessages(String threadId, String accessToken) => _fetchList(
+      '$apiBaseUrl/api/communication/threads/$threadId/messages/',
+      accessToken,
+      ChatMessage.fromJson,
+    );
+
+/// wss://.../ws/chat/{thread_id}?token={access_token} 실시간 연결 하나.
+/// 서버가 끊김을 자동 재연결해주지 않아서, 연결이 끊기면 클라이언트가 알아서 재연결함.
+class ChatSocket {
+  final String threadId;
+  final String accessToken;
+  final void Function(ChatMessage message) onMessage;
+
+  WebSocketChannel? _channel;
+  bool _disposed = false;
+
+  ChatSocket({
+    required this.threadId,
+    required this.accessToken,
+    required this.onMessage,
+  });
+
+  void connect() {
+    if (_disposed) return;
+
+    final wsBase = apiBaseUrl.replaceFirst('https://', 'wss://').replaceFirst('http://', 'ws://');
+    final uri = Uri.parse('$wsBase/ws/chat/$threadId?token=$accessToken');
+
+    try {
+      _channel = WebSocketChannel.connect(uri);
+    } catch (_) {
+      _scheduleReconnect();
+      return;
+    }
+
+    _channel!.stream.listen(
+      (event) {
+        try {
+          final json = jsonDecode(event as String) as Map<String, dynamic>;
+          onMessage(ChatMessage.fromJson(json));
+        } catch (_) {
+          // 파싱 안 되는 이벤트는 무시
+        }
+      },
+      onDone: _scheduleReconnect,
+      onError: (_) => _scheduleReconnect(),
+      cancelOnError: true,
+    );
+  }
+
+  void _scheduleReconnect() {
+    if (_disposed) return;
+    Future.delayed(const Duration(seconds: 2), connect);
+  }
+
+  /// 메시지 전송은 WS로 — REST로 보내면 저장은 되지만 다른 접속자에게 실시간 전파가 안 됨.
+  void send(String content) {
+    _channel?.sink.add(jsonEncode({'content': content}));
+  }
+
+  void dispose() {
+    _disposed = true;
+    _channel?.sink.close();
+  }
+}

@@ -12,9 +12,14 @@ import 'care_plan_medication_screen.dart';
 ///
 /// TODO: 실제 연결 시 mockNursePatientOverview() 대신 API로 교체.
 class NursePatientDetailScreen extends StatelessWidget {
+  final String patientId;
   final String patientName;
 
-  const NursePatientDetailScreen({super.key, required this.patientName});
+  const NursePatientDetailScreen({
+    super.key,
+    required this.patientId,
+    required this.patientName,
+  });
 
   String _timeLabel(TimeOfDay t) {
     String two(int n) => n.toString().padLeft(2, '0');
@@ -132,7 +137,10 @@ class NursePatientDetailScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => CarePlanMedicationScreen(patientName: overview.name),
+                    builder: (_) => CarePlanMedicationScreen(
+                      patientId: patientId,
+                      patientName: overview.name,
+                    ),
                   ),
                 );
               },

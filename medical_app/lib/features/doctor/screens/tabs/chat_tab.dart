@@ -4,11 +4,10 @@ import 'package:provider/provider.dart';
 import '../../../../core/api/auth_api.dart';
 import '../../../../core/api/communication_api.dart' as api;
 import '../../../../core/auth/session_controller.dart';
-import '../../models/chat.dart' as local;
-import '../chat_room_screen.dart';
+import '../../../../core/chat/chat_room_screen.dart';
 
-/// 탭 4: 간호사 채팅 목록. 실제 API(GET /api/communication/threads/) 연동됨.
-/// TODO: 채팅방 안 메시지 조회/전송은 아직 mock — 메시지 API 응답 형식 확인되면 연결.
+/// 탭 4: 의사 채팅 목록. 실제 API(GET /api/communication/threads/) 연동됨.
+/// 채팅방 안 메시지 조회/전송도 실제 API+WS 연동됨.
 class ChatTab extends StatefulWidget {
   const ChatTab({super.key});
 
@@ -143,19 +142,8 @@ class _ThreadTile extends StatelessWidget {
         ],
       ),
       onTap: () {
-        // 채팅방(메시지 조회/전송)은 아직 mock — 실제 API 확인되면 여기서 real thread.id 넘기게 교체.
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ChatRoomScreen(
-              thread: local.ChatThread(
-                id: thread.id,
-                partnerName: thread.otherParticipantName,
-                lastMessage: thread.lastMessage,
-                lastMessageAt: thread.createdAt,
-                unreadCount: thread.unreadCount,
-              ),
-            ),
-          ),
+          MaterialPageRoute(builder: (_) => ChatRoomScreen(thread: thread)),
         );
       },
     );

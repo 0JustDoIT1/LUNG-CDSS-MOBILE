@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import '../../features/nurse/models/staff_patient.dart';
 
 /// LUNG-CDSS 백엔드 주소.
 const String apiBaseUrl = 'https://lung-cdss.kro.kr';
@@ -57,18 +58,28 @@ Future<void> updateNotificationPreference({
   }
 }
 
-/// GET/PUT /api/auth/doctor/profile/ — 사진URL + 전문분야태그.
-/// 참고: 이름/소속병원/진료과/면허번호는 이 API에 없음 (로그인응답의 name, GET /hospital/로 대체).
+/// GET/PUT /api/auth/doctor/profile/ — 사진URL + 전문분야태그 + 진료과/면허번호.
+/// 참고: department/licenseNumber는 조회만 가능하고 PUT으로 수정 불가.
+/// 이름/소속병원은 이 API에 없음 (로그인응답의 name, GET /hospital/로 대체).
 class DoctorProfileData {
   final String? photoUrl;
   final List<String> specialtyTags;
+  final String department;
+  final String licenseNumber;
 
-  DoctorProfileData({required this.photoUrl, required this.specialtyTags});
+  DoctorProfileData({
+    required this.photoUrl,
+    required this.specialtyTags,
+    required this.department,
+    required this.licenseNumber,
+  });
 
   factory DoctorProfileData.fromJson(Map<String, dynamic> json) {
     return DoctorProfileData(
       photoUrl: json['photo_url'] as String?,
       specialtyTags: (json['specialty_tags'] as List?)?.cast<String>() ?? [],
+      department: json['department'] as String? ?? '',
+      licenseNumber: json['license_number'] as String? ?? '',
     );
   }
 }
@@ -263,4 +274,23 @@ Future<StaffLoginResult> staffLogin({
   }
 
   throw ApiException('로그인에 실패했어요. (${response.statusCode})');
+}
+
+/// GET /api/auth/staff/patients/ — 담당환자 목록(id/name/patient_number/birth_date).
+Future<List<StaffPatient>> fetchStaffPatients(String accessToken) async {
+  final uri = Uri.parse('$apiBaseUrl/api/auth/staff/patients/');
+
+  http.Response response;
+  try {
+    response = await http.get(uri, headers: {'Authorization': 'Bearer $accessToken'});
+  } catch (_) {
+    throw ApiException('서버에 연결할 수 없어요. 네트워크 상태를 확인해주세요.');
+  }
+
+  if (response.statusCode != 200) {
+    throw ApiException('환자 목록을 불러오지 못했어요. (${response.statusCode})');
+  }
+
+  final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
+  return list.cast<Map<String, dynamic>>().map(StaffPatient.fromJson).toList();
 }

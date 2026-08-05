@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../main.dart';
 import '../api/auth_api.dart';
 import '../constants/user_role.dart';
+import 'jwt_utils.dart';
 
 /// 로그인 상태 & 현재 역할(의사/간호사)을 앱 전역에서 들고 있는 컨트롤러.
 /// 실제 서버(POST /api/auth/staff/login/, .../staff/signup/) 연동됨.
@@ -27,6 +29,9 @@ class SessionController extends ChangeNotifier {
   String get name => _name;
   bool get isLoading => _isLoading;
 
+  /// 로그인 응답엔 사용자 id가 없어서, access 토큰(JWT)에서 매번 꺼냄.
+  String? get myUserId => _accessToken != null ? decodeJwtUserId(_accessToken!) : null;
+
   UserRole? _parseRole(String serverRole) => switch (serverRole) {
         'doctor' => UserRole.doctor,
         'nurse' => UserRole.nurse,
@@ -44,11 +49,15 @@ class SessionController extends ChangeNotifier {
     _refreshToken = prefs.getString(_keyRefreshToken);
     _name = prefs.getString(_keyName) ?? '';
     notifyListeners();
+
+    if (_accessToken != null) {
+      fcmService.init(_accessToken!); // ← 추가: 앱 재시작 시에도 FCM 등록
+    }
   }
 
   /// 로그인/회원가입 응답(StaffLoginResult)을 세션에 반영 + 로컬저장.
   /// 지원 안 하는 역할(병리사 등)이면 false 반환, 정상 처리되면 true.
-  Future<bool> applyLoginResult(StaffLoginResult result) async {
+Future<bool> applyLoginResult(StaffLoginResult result) async {
     final role = _parseRole(result.role);
     if (role == null) return false;
 
@@ -64,6 +73,7 @@ class SessionController extends ChangeNotifier {
     await prefs.setString(_keyName, result.name);
 
     notifyListeners();
+    fcmService.init(result.access); // 로그인 성공 시 FCM 토큰 발급+서버등록 (실패해도 로그인엔 영향 없음)
     return true;
   }
 

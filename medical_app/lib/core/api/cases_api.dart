@@ -29,6 +29,25 @@ Future<List<ReviewCase>> fetchCases(String accessToken) async {
       .toList();
 }
 
+/// GET /api/cases/{id}/ — 상세조회. 목록엔 없는 slide_thumbnail_url/heatmap_url 포함.
+Future<ReviewCase> fetchCaseDetail(String caseId, String accessToken) async {
+  final uri = Uri.parse('$apiBaseUrl/api/cases/$caseId/');
+
+  http.Response response;
+  try {
+    response = await http.get(uri, headers: {'Authorization': 'Bearer $accessToken'});
+  } catch (_) {
+    throw ApiException('서버에 연결할 수 없어요. 네트워크 상태를 확인해주세요.');
+  }
+
+  if (response.statusCode != 200) {
+    throw ApiException('케이스 상세를 불러오지 못했어요. (${response.statusCode})');
+  }
+
+  final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+  return ReviewCase.fromJson(body);
+}
+
 /// POST /api/cases/{case_id}/favorite/ — 즐겨찾기 토글.
 Future<void> toggleCaseFavorite(String caseId, String accessToken) async {
   final uri = Uri.parse('$apiBaseUrl/api/cases/$caseId/favorite/');

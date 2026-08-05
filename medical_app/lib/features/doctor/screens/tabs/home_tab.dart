@@ -12,7 +12,8 @@ import '../case_detail_screen.dart';
 import '../patient_detail_screen.dart';
 
 /// 탭 3(중앙): 홈 대시보드. 실제 API(cases, appointments) 연동됨.
-/// 검토대기/오늘예약 건수, 다음진료, 즐겨찾기 케이스, 최근 검토대기 전부 실제 데이터 기반.
+/// 케이스 조회 실패 시에만 전체 에러 화면을 보여주고, 예약 조회는 독립적으로 실패를 허용해
+/// (예: /api/appointments/mine/ 403) 나머지 섹션은 정상 표시되도록 처리.
 class DoctorHomeTab extends StatefulWidget {
   final ValueChanged<int> onNavigateToTab;
 
@@ -26,7 +27,8 @@ class _DoctorHomeTabState extends State<DoctorHomeTab> {
   List<ReviewCase> _cases = [];
   List<Appointment> _appointments = [];
   bool _isLoading = true;
-  String? _errorMessage;
+  String? _casesErrorMessage;
+  String? _appointmentsErrorMessage;
 
   @override
   void initState() {
@@ -37,27 +39,34 @@ class _DoctorHomeTabState extends State<DoctorHomeTab> {
   Future<void> _load() async {
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
+      _casesErrorMessage = null;
+      _appointmentsErrorMessage = null;
     });
     final token = context.read<SessionController>().accessToken;
     if (token == null) return;
 
+    // 케이스 조회 — 홈 화면의 핵심 데이터라 실패 시 전체 에러 화면으로 처리
     try {
       final cases = await fetchCases(token);
-      final rawAppointments = await fetchMyAppointmentsRaw(token);
       if (!mounted) return;
-      setState(() {
-        _cases = cases;
-        _appointments = rawAppointments.map(Appointment.fromJson).toList();
-        _isLoading = false;
-      });
+      setState(() => _cases = cases);
     } on ApiException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _errorMessage = e.message;
-      });
+      setState(() => _casesErrorMessage = e.message);
     }
+
+    // 예약 조회 — 독립적으로 실패 허용 (예: appointments/mine/ 403이어도 나머지 섹션은 유지)
+    try {
+      final rawAppointments = await fetchMyAppointmentsRaw(token);
+      if (!mounted) return;
+      setState(() => _appointments = rawAppointments.map(Appointment.fromJson).toList());
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _appointmentsErrorMessage = e.message);
+    }
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
   }
 
   List<ReviewCase> get _pendingCases =>
@@ -95,12 +104,14 @@ class _DoctorHomeTabState extends State<DoctorHomeTab> {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_errorMessage != null) {
+
+    // 케이스 조회 자체가 실패하면 홈 화면을 구성할 핵심 데이터가 없으므로 전체 에러 화면
+    if (_casesErrorMessage != null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            Text(_casesErrorMessage!, style: TextStyle(color: Colors.grey.shade600)),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -122,11 +133,14 @@ class _DoctorHomeTabState extends State<DoctorHomeTab> {
               _SummaryRow(
                 pendingCount: _pendingCases.length,
                 urgentCount: _urgentCount,
-                todayAppointmentCount: _todayAppointments.length,
+                todayAppointmentCount:
+                    _appointmentsErrorMessage == null ? _todayAppointments.length : null,
                 onNavigateToTab: widget.onNavigateToTab,
               ),
               const SizedBox(height: 16),
-              _NextAppointmentCard(appointment: _nextAppointment),
+              _appointmentsErrorMessage != null
+                  ? _AppointmentUnavailableCard(onRetry: _load)
+                  : _NextAppointmentCard(appointment: _nextAppointment),
               const SizedBox(height: 24),
               _SectionTitle('즐겨찾기 케이스', icon: Icons.star, color: AppTheme.gradientStart),
               const SizedBox(height: 8),
@@ -185,7 +199,7 @@ class _GreetingHeader extends StatelessWidget {
 class _SummaryRow extends StatelessWidget {
   final int pendingCount;
   final int urgentCount;
-  final int todayAppointmentCount;
+  final int? todayAppointmentCount; // null = 조회 실패
   final ValueChanged<int> onNavigateToTab;
 
   const _SummaryRow({
@@ -214,8 +228,8 @@ class _SummaryRow extends StatelessWidget {
           Expanded(
             child: _SummaryCard(
               title: '오늘 예약',
-              value: '$todayAppointmentCount건',
-              subtitle: null,
+              value: todayAppointmentCount != null ? '$todayAppointmentCount건' : '—',
+              subtitle: todayAppointmentCount == null ? '불러오기 실패' : null,
               cardColor: AppTheme.gradientStart,
               onTap: () => onNavigateToTab(1), // 일정 탭
             ),
@@ -361,6 +375,41 @@ class _NextAppointmentCard extends StatelessWidget {
               );
             }),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 예약 조회 API(예: appointments/mine/)가 실패했을 때 표시되는 대체 카드. 케이스 섹션은 정상 유지.
+class _AppointmentUnavailableCard extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _AppointmentUnavailableCard({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: Colors.grey.shade400, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '일정 정보를 불러오지 못했어요',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('재시도')),
         ],
       ),
     );

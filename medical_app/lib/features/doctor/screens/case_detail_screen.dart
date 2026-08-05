@@ -34,6 +34,37 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
   _MainTab _mainTab = _MainTab.image;
   late bool _isFavorite = widget.reviewCase.isFavorite;
 
+  ReviewCase? _detail;
+  bool _isLoadingDetail = true;
+  String? _detailErrorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDetail());
+  }
+
+  Future<void> _loadDetail() async {
+    setState(() {
+      _isLoadingDetail = true;
+      _detailErrorMessage = null;
+    });
+
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+
+    try {
+      final detail = await fetchCaseDetail(widget.reviewCase.id, token);
+      if (!mounted) return;
+      setState(() => _detail = detail);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _detailErrorMessage = e.message);
+    } finally {
+      if (mounted) setState(() => _isLoadingDetail = false);
+    }
+  }
+
   Future<void> _toggleFavorite() async {
     final token = context.read<SessionController>().accessToken;
     setState(() => _isFavorite = !_isFavorite);
@@ -100,8 +131,20 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
             const SizedBox(height: 16),
             Expanded(
               child: _mainTab == _MainTab.image
-                  ? _ImageTabView(reviewCase: c)
-                  : _OpinionTabView(reviewCase: c),
+                  ? _ImageTabView(
+                      reviewCase: c,
+                      detail: _detail,
+                      isLoading: _isLoadingDetail,
+                      errorMessage: _detailErrorMessage,
+                      onRetry: _loadDetail,
+                    )
+                  : _OpinionTabView(
+                      reviewCase: c,
+                      detail: _detail,
+                      isLoading: _isLoadingDetail,
+                      errorMessage: _detailErrorMessage,
+                      onRetry: _loadDetail,
+                    ),
             ),
           ],
         ),
@@ -154,8 +197,18 @@ enum _ViewMode { heatmap, overlay, original }
 
 class _ImageTabView extends StatefulWidget {
   final ReviewCase reviewCase;
+  final ReviewCase? detail; // slide_thumbnail_url/heatmap_url 포함된 상세조회 결과
+  final bool isLoading;
+  final String? errorMessage;
+  final VoidCallback onRetry;
 
-  const _ImageTabView({required this.reviewCase});
+  const _ImageTabView({
+    required this.reviewCase,
+    required this.detail,
+    required this.isLoading,
+    required this.errorMessage,
+    required this.onRetry,
+  });
 
   @override
   State<_ImageTabView> createState() => _ImageTabViewState();
@@ -196,11 +249,55 @@ class _ImageTabViewState extends State<_ImageTabView> {
     });
   }
 
-  Color get _placeholderColor => switch (_mode) {
-        _ViewMode.heatmap => Colors.deepOrange.shade200,
-        _ViewMode.overlay => Colors.purple.shade200,
-        _ViewMode.original => Colors.grey.shade300,
-      };
+  Widget _placeholder(String message) {
+    return Container(
+      color: Colors.grey.shade200,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.image_outlined, size: 48, color: Colors.black38),
+          const SizedBox(height: 8),
+          Text(message, style: TextStyle(color: Colors.black54, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _networkImage(String? url) {
+    if (url == null || url.isEmpty) return _placeholder('이미지가 없어요');
+    return Image.network(
+      url,
+      fit: BoxFit.contain,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return const Center(child: CircularProgressIndicator());
+      },
+      errorBuilder: (context, error, stack) => _placeholder('이미지를 불러오지 못했어요'),
+    );
+  }
+
+  /// 히트맵/오버레이/원본 모드에 맞는 이미지 배경 레이어.
+  /// 오버레이는 원본 위에 히트맵을 겹치고 _overlayIntensity로 히트맵 투명도를 조절.
+  Widget _buildImageLayer() {
+    if (widget.isLoading) return const Center(child: CircularProgressIndicator());
+    if (widget.errorMessage != null) return _placeholder(widget.errorMessage!);
+
+    final detail = widget.detail;
+    if (detail == null) return _placeholder('이미지를 불러오지 못했어요');
+
+    return switch (_mode) {
+      _ViewMode.original => _networkImage(detail.slideThumbnailUrl),
+      _ViewMode.heatmap => _networkImage(detail.heatmapUrl),
+      _ViewMode.overlay => Stack(
+          fit: StackFit.expand,
+          children: [
+            _networkImage(detail.slideThumbnailUrl),
+            Opacity(opacity: _overlayIntensity, child: _networkImage(detail.heatmapUrl)),
+          ],
+        ),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -237,36 +334,8 @@ class _ImageTabViewState extends State<_ImageTabView> {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          // 1. 이미지 배경 레이어 (Placeholder)
-                          Container(
-                            color: _placeholderColor,
-                            alignment: Alignment.center,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.image_outlined,
-                                  size: 48,
-                                  color: Colors.black38,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _annotationOn
-                                      ? '✏️ 드로잉 모드 (손가락으로 그려보세요)'
-                                      : '🖐️ 핀치줌·드래그로 이동 (연필 클릭 시 드로잉)',
-                                  style: TextStyle(
-                                    color: _annotationOn
-                                        ? Colors.blue.shade900
-                                        : Colors.black54,
-                                    fontSize: 12,
-                                    fontWeight: _annotationOn
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          // 1. 이미지 배경 레이어
+                          _buildImageLayer(),
 
                           // 2. 드로잉 캔버스 레이어
                           CustomPaint(
@@ -311,6 +380,24 @@ class _ImageTabViewState extends State<_ImageTabView> {
                                 });
                               },
                             ),
+
+                          // 4. 안내 캡션
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                              color: Colors.black.withValues(alpha: 0.45),
+                              child: Text(
+                                _annotationOn
+                                    ? '✏️ 드로잉 모드 (손가락으로 그려보세요)'
+                                    : '🖐️ 핀치줌·드래그로 이동 (연필 클릭 시 드로잉)',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.white, fontSize: 11),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -332,21 +419,23 @@ class _ImageTabViewState extends State<_ImageTabView> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              const Icon(Icons.layers_outlined, size: 18),
-              const SizedBox(width: 6),
-              const Text('오버레이 강도'),
-              Expanded(
-                child: Slider(
-                  value: _overlayIntensity,
-                  onChanged: (v) => setState(() => _overlayIntensity = v),
+          if (_mode == _ViewMode.overlay) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.layers_outlined, size: 18),
+                const SizedBox(width: 6),
+                const Text('히트맵 투명도'),
+                Expanded(
+                  child: Slider(
+                    value: _overlayIntensity,
+                    onChanged: (v) => setState(() => _overlayIntensity = v),
+                  ),
                 ),
-              ),
-              Text('${(_overlayIntensity * 100).round()}%'),
-            ],
-          ),
+                Text('${(_overlayIntensity * 100).round()}%'),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           const Text('주석/드로잉', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
@@ -483,12 +572,42 @@ class _DrawingPainter extends CustomPainter {
 
 class _OpinionTabView extends StatelessWidget {
   final ReviewCase reviewCase;
+  final ReviewCase? detail; // gene_predictions/treatment_note 포함된 상세조회 결과
+  final bool isLoading;
+  final String? errorMessage;
+  final VoidCallback onRetry;
 
-  const _OpinionTabView({required this.reviewCase});
+  const _OpinionTabView({
+    required this.reviewCase,
+    required this.detail,
+    required this.isLoading,
+    required this.errorMessage,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
     final c = reviewCase;
+
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (errorMessage != null || detail == null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(errorMessage ?? '소견을 불러오지 못했어요.', style: TextStyle(color: Colors.grey.shade600)),
+            const SizedBox(height: 8),
+            TextButton(onPressed: onRetry, child: const Text('다시 시도')),
+          ],
+        ),
+      );
+    }
+
+    final genePredictions = detail!.genePredictions;
+    final treatmentNote = detail!.treatmentNote;
 
     return ListView(
       children: [
@@ -496,6 +615,15 @@ class _OpinionTabView extends StatelessWidget {
         const SizedBox(height: 16),
         _TypeProbabilityBar(reviewCase: c),
         const SizedBox(height: 24),
+        const Text('유전자변이 확률', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        if (genePredictions.isEmpty)
+          Text('예측된 유전자변이가 없어요', style: TextStyle(color: Colors.grey.shade500))
+        else
+          ...genePredictions.map((g) => _GenePredictionRow(prediction: g)),
+        const SizedBox(height: 24),
+        const Text('AI 소견', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -504,12 +632,55 @@ class _OpinionTabView extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
-            '유전자변이 확률·AI 소견은 준비 중이에요.',
-            style: TextStyle(color: Colors.grey.shade600),
+            (treatmentNote == null || treatmentNote.isEmpty) ? 'AI 소견이 없어요.' : treatmentNote,
+            style: TextStyle(color: Colors.grey.shade800),
           ),
         ),
         const SizedBox(height: 16),
       ],
+    );
+  }
+}
+
+class _GenePredictionRow extends StatelessWidget {
+  final GenePrediction prediction;
+
+  const _GenePredictionRow({required this.prediction});
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = (prediction.probability * 100).round();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 56,
+            child: Text(prediction.gene, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: prediction.probability.clamp(0, 1),
+                minHeight: 8,
+                backgroundColor: Colors.grey.shade200,
+                color: AppTheme.gradientEnd,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 40,
+            child: Text(
+              '$percent%',
+              textAlign: TextAlign.end,
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

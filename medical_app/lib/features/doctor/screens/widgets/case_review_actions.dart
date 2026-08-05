@@ -9,8 +9,8 @@ import '../../models/review_case.dart';
 /// 케이스 상세화면 하단에 고정으로 붙는 승인/반려 액션바.
 /// 실제 API(POST /api/cases/{id}/review/) 연동됨.
 ///
-/// - 승인(action=confirm): AI값 그대로 확정
-/// - 반려(action=edit): 바텀시트로 소견/아형 수정 → 수정값으로 확정
+/// - 승인(action=confirm), 반려(action=edit) 모두 바텀시트로 아형/의사 소견을 입력받아
+///   final_subtype/final_note로 전송 — 서버가 confirm에도 이 필드들을 요구함(누락 시 400).
 /// - 서버는 둘 다 status=confirmed로 처리 (승인/반려를 별도 상태로 구분하지 않음)
 class CaseReviewActionBar extends StatelessWidget {
   final ReviewCase reviewCase;
@@ -18,28 +18,18 @@ class CaseReviewActionBar extends StatelessWidget {
   const CaseReviewActionBar({super.key, required this.reviewCase});
 
   Future<void> _onApprove(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+    final result = await showModalBottomSheet<_ReviewFormResult>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('승인하시겠어요?'),
-        content: Text(
-          'AI 분석 결과(${reviewCase.type.label}, '
-          '${(reviewCase.confidence * 100).round()}%)를 그대로 확정합니다.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('승인'),
-          ),
-        ],
+      isScrollControlled: true,
+      builder: (context) => _ReviewForm(
+        reviewCase: reviewCase,
+        title: '승인 · 소견 입력',
+        buttonLabel: '승인 확정',
+        buttonColor: Colors.blue.shade600,
       ),
     );
 
-    if (confirmed != true || !context.mounted) return;
+    if (result == null || !context.mounted) return;
 
     final token = context.read<SessionController>().accessToken;
     if (token == null) return;
@@ -49,6 +39,8 @@ class CaseReviewActionBar extends StatelessWidget {
         caseId: reviewCase.id,
         accessToken: token,
         action: 'confirm',
+        finalSubtype: result.type.label, // 'LUAD' | 'LUSC'
+        finalNote: result.opinion,
       );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -62,10 +54,15 @@ class CaseReviewActionBar extends StatelessWidget {
   }
 
   Future<void> _onReject(BuildContext context) async {
-    final result = await showModalBottomSheet<_RejectFormResult>(
+    final result = await showModalBottomSheet<_ReviewFormResult>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _RejectForm(reviewCase: reviewCase),
+      builder: (context) => _ReviewForm(
+        reviewCase: reviewCase,
+        title: '반려 · 소견 수정',
+        buttonLabel: '반려 확정',
+        buttonColor: Colors.red.shade600,
+      ),
     );
 
     if (result == null || !context.mounted) return;
@@ -94,6 +91,24 @@ class CaseReviewActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 이미 확정된 케이스는 재승인/반려 대상이 아니라 버튼 자리에 안내 문구만 표시.
+    if (reviewCase.status == CaseStatus.confirmed) {
+      return SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle_outline, size: 18, color: Colors.grey.shade500),
+            const SizedBox(width: 6),
+            Text(
+              '이미 확정된 케이스예요',
+              style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+    }
+
     return SafeArea(
       minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: Row(
@@ -125,23 +140,33 @@ class CaseReviewActionBar extends StatelessWidget {
   }
 }
 
-class _RejectFormResult {
+class _ReviewFormResult {
   final CaseType type;
   final String opinion;
 
-  _RejectFormResult({required this.type, required this.opinion});
+  _ReviewFormResult({required this.type, required this.opinion});
 }
 
-class _RejectForm extends StatefulWidget {
+/// 승인/반려 공통 입력폼 — 아형(subtype)과 의사 소견(note)을 입력받아
+/// POST /api/cases/{id}/review/의 final_subtype/final_note로 그대로 전송됨.
+class _ReviewForm extends StatefulWidget {
   final ReviewCase reviewCase;
+  final String title;
+  final String buttonLabel;
+  final Color buttonColor;
 
-  const _RejectForm({required this.reviewCase});
+  const _ReviewForm({
+    required this.reviewCase,
+    required this.title,
+    required this.buttonLabel,
+    required this.buttonColor,
+  });
 
   @override
-  State<_RejectForm> createState() => _RejectFormState();
+  State<_ReviewForm> createState() => _ReviewFormState();
 }
 
-class _RejectFormState extends State<_RejectForm> {
+class _ReviewFormState extends State<_ReviewForm> {
   late CaseType _type;
   final TextEditingController _opinionController = TextEditingController();
 
@@ -171,11 +196,11 @@ class _RejectFormState extends State<_RejectForm> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '반려 · 소견 수정',
+            widget.title,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 16),
-          const Text('아형 수정', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text('아형', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           SegmentedButton<CaseType>(
             segments: const [
@@ -186,14 +211,14 @@ class _RejectFormState extends State<_RejectForm> {
             onSelectionChanged: (s) => setState(() => _type = s.first),
           ),
           const SizedBox(height: 16),
-          const Text('소견 수정', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text('의사 소견', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           TextField(
             controller: _opinionController,
             maxLines: 4,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
-              hintText: '수정된 소견을 입력하세요',
+              hintText: '소견을 입력하세요',
             ),
           ),
           const SizedBox(height: 16),
@@ -201,17 +226,17 @@ class _RejectFormState extends State<_RejectForm> {
             width: double.infinity,
             child: FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: Colors.red.shade600,
+                backgroundColor: widget.buttonColor,
               ),
               onPressed: () {
                 Navigator.of(context).pop(
-                  _RejectFormResult(
+                  _ReviewFormResult(
                     type: _type,
                     opinion: _opinionController.text,
                   ),
                 );
               },
-              child: const Text('반려 확정'),
+              child: Text(widget.buttonLabel),
             ),
           ),
         ],

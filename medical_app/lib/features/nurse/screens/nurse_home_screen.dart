@@ -53,12 +53,12 @@ class _NurseHomeScreenState extends State<NurseHomeScreen> {
     }
   }
 
-  List<Widget> get _tabs => const [
-        QueueTab(),
-        NursePatientsTab(),
-        NurseHomeTab(),
-        NurseChatTab(),
-        NurseSettingsTab(),
+  List<Widget> get _tabs => [
+        const QueueTab(),
+        const NursePatientsTab(),
+        NurseHomeTab(onNavigateToTab: (i) => setState(() => _tabIndex = i)),
+        const NurseChatTab(),
+        const NurseSettingsTab(),
       ];
 
   void _scanQr() {
