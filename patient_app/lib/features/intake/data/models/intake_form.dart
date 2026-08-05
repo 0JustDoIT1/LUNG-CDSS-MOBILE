@@ -59,14 +59,16 @@ class IntakeQuestion {
     final answer = json['answer'];
     switch (type) {
       case IntakeQuestionType.singleChoice:
-      case IntakeQuestionType.text:
         if (answer != null && answer is! String) {
           throw const FormatException('문진 답변 형식이 올바르지 않습니다.');
         }
       case IntakeQuestionType.multipleChoice:
-        if (answer != null &&
-            (answer is! List<dynamic> ||
-                answer.any((value) => value is! String))) {
+        if (answer is! List<dynamic> ||
+            answer.any((value) => value is! String)) {
+          throw const FormatException('문진 답변 형식이 올바르지 않습니다.');
+        }
+      case IntakeQuestionType.text:
+        if (answer is! String) {
           throw const FormatException('문진 답변 형식이 올바르지 않습니다.');
         }
     }

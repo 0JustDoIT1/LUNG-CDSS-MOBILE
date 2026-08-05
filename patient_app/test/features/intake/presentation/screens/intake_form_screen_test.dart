@@ -42,6 +42,15 @@ void main() {
     expect(find.text('등록된 문진 문항이 없습니다.'), findsOneWidget);
   });
 
+  testWidgets('shows the server-defined 15 question sequence', (tester) async {
+    await tester.pumpWidget(_app(_Repository(_fifteenQuestionForm)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 / 15'), findsOneWidget);
+    expect(find.text('서버 질문 1'), findsOneWidget);
+    expect(find.byType(CheckboxListTile), findsNWidgets(2));
+  });
+
   testWidgets('keeps retry on a loading error', (tester) async {
     await tester.pumpWidget(_app(_Repository(_form, shouldFail: true)));
     await tester.pumpAndSettle();
@@ -115,3 +124,50 @@ final _emptyForm = IntakeForm(
   submittedAt: null,
   updatedAt: DateTime(2026, 8, 5),
 );
+
+final _fifteenQuestionForm = IntakeForm.fromJson(
+  <String, dynamic>{
+    'id': 'intake-id',
+    'content': <String, dynamic>{
+      'status': 'draft',
+      'questions': List<dynamic>.generate(15, (index) {
+        return <String, dynamic>{
+          'question_id': _templateQuestionIds[index],
+          'question_text': '서버 질문 ${index + 1}',
+          'question_type': index == 0
+              ? 'multiple_choice'
+              : index == 14
+              ? 'text'
+              : 'single_choice',
+          'options': index == 14 ? <String>[] : <String>['선택 1', '선택 2'],
+          'required': index == 0,
+          'answer': index == 0
+              ? <String>[]
+              : index == 14
+              ? ''
+              : null,
+        };
+      }),
+    },
+    'submitted_at': null,
+    'updated_at': '2026-08-05T16:10:00+09:00',
+  },
+);
+
+const _templateQuestionIds = <String>[
+  'current_symptoms',
+  'symptom_onset',
+  'symptom_change',
+  'dyspnea_level',
+  'hemoptysis',
+  'pain_level',
+  'pain_description',
+  'fever',
+  'food_intake',
+  'weight_change',
+  'medication_adherence',
+  'medication_nonadherence_reason',
+  'medication_side_effects',
+  'daily_activity',
+  'questions_for_medical_staff',
+];

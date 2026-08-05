@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,6 +62,24 @@ void main() {
       '비흡연',
     );
   });
+
+  test('blocks a duplicate save while the first PUT is in progress', () async {
+    final blocker = Completer<void>();
+    final repository = _FakeRepository(saveBlocker: blocker);
+    final container = _container(repository);
+    addTearDown(container.dispose);
+    await container.read(intakeFormProvider.future);
+    final notifier = container.read(intakeFormProvider.notifier);
+    notifier.updateAnswer('smoking', '비흡연');
+
+    final firstSave = notifier.saveDraft();
+    await Future<void>.delayed(Duration.zero);
+    expect(await notifier.saveDraft(), isFalse);
+    expect(repository.savedContents, hasLength(1));
+
+    blocker.complete();
+    expect(await firstSave, isTrue);
+  });
 }
 
 ProviderContainer _container(IntakeRepository repository) {
@@ -71,10 +91,11 @@ ProviderContainer _container(IntakeRepository repository) {
 }
 
 class _FakeRepository extends IntakeRepository {
-  _FakeRepository({this.shouldFail = false})
+  _FakeRepository({this.shouldFail = false, this.saveBlocker})
     : super(IntakeApi(ApiClient(dio: Dio())));
 
   final bool shouldFail;
+  final Completer<void>? saveBlocker;
   final List<IntakeContent> savedContents = <IntakeContent>[];
 
   @override
@@ -84,6 +105,7 @@ class _FakeRepository extends IntakeRepository {
   Future<IntakeForm> saveMyIntake(IntakeContent content) async {
     if (shouldFail) throw Exception('failed');
     savedContents.add(content);
+    await saveBlocker?.future;
     return IntakeForm(
       id: _form.id,
       content: content,

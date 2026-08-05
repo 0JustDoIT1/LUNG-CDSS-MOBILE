@@ -35,6 +35,49 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('preserves question metadata, order, and only changed answers', () async {
+    final client = _FakeApiClient(_response);
+    const questions = <IntakeQuestion>[
+      IntakeQuestion(
+        questionId: 'current_symptoms',
+        questionText: '서버 질문 1',
+        questionType: IntakeQuestionType.multipleChoice,
+        options: <String>['기침', '가래'],
+        required: true,
+        answer: <String>['기침'],
+      ),
+      IntakeQuestion(
+        questionId: 'symptom_onset',
+        questionText: '서버 질문 2',
+        questionType: IntakeQuestionType.singleChoice,
+        options: <String>['오늘', '이전'],
+        required: true,
+        answer: '오늘',
+      ),
+    ];
+
+    await IntakeApi(client).saveMyIntake(
+      const IntakeContent(
+        status: IntakeStatus.submitted,
+        questions: questions,
+      ),
+    );
+
+    final content =
+        (client.data! as Map<String, dynamic>)['content']
+            as Map<String, dynamic>;
+    final sentQuestions = content['questions']! as List<dynamic>;
+    expect(content['status'], 'submitted');
+    expect(
+      sentQuestions.map(
+        (item) => (item as Map<String, dynamic>)['question_id'],
+      ),
+      orderedEquals(<String>['current_symptoms', 'symptom_onset']),
+    );
+    expect(sentQuestions.first, questions.first.toJson());
+    expect(sentQuestions.last, questions.last.toJson());
+  });
 }
 
 class _FakeApiClient extends ApiClient {

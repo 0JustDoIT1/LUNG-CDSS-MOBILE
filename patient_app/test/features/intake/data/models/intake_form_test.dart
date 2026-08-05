@@ -46,7 +46,93 @@ void main() {
     (questions.first as Map<String, dynamic>)['answer'] = <String>['비흡연'];
     expect(() => IntakeForm.fromJson(json), throwsFormatException);
   });
+
+  test('parses all 15 template questions without changing their order', () {
+    final form = IntakeForm.fromJson(_fifteenQuestionFormJson());
+
+    expect(form.questions, hasLength(15));
+    expect(
+      form.questions.map((question) => question.questionId),
+      orderedEquals(_questionIds),
+    );
+    expect(form.questions.first.answer, isEmpty);
+    expect(form.questions[1].answer, isNull);
+    expect(form.questions.last.answer, '');
+
+    final serialized = form.content.toJson();
+    final questions = serialized['questions']! as List<dynamic>;
+    expect(
+      questions.map((item) => (item as Map<String, dynamic>)['question_id']),
+      orderedEquals(_questionIds),
+    );
+  });
+
+  test('requires typed empty answers for multiple choice and text', () {
+    final multipleJson = _fifteenQuestionFormJson();
+    final multipleQuestions =
+        (multipleJson['content'] as Map<String, dynamic>)['questions']
+            as List<dynamic>;
+    (multipleQuestions.first as Map<String, dynamic>)['answer'] = null;
+    expect(
+      () => IntakeForm.fromJson(multipleJson),
+      throwsFormatException,
+    );
+
+    final textJson = _fifteenQuestionFormJson();
+    final textQuestions =
+        (textJson['content'] as Map<String, dynamic>)['questions']
+            as List<dynamic>;
+    (textQuestions.last as Map<String, dynamic>)['answer'] = null;
+    expect(() => IntakeForm.fromJson(textJson), throwsFormatException);
+  });
 }
+
+const _questionIds = <String>[
+  'current_symptoms',
+  'symptom_onset',
+  'symptom_change',
+  'dyspnea_level',
+  'hemoptysis',
+  'pain_level',
+  'pain_description',
+  'fever',
+  'food_intake',
+  'weight_change',
+  'medication_adherence',
+  'medication_nonadherence_reason',
+  'medication_side_effects',
+  'daily_activity',
+  'questions_for_medical_staff',
+];
+
+Map<String, dynamic> _fifteenQuestionFormJson() => <String, dynamic>{
+  'id': 'intake-id',
+  'content': <String, dynamic>{
+    'status': 'draft',
+    'questions': List<dynamic>.generate(_questionIds.length, (index) {
+      final isFirst = index == 0;
+      final isLast = index == _questionIds.length - 1;
+      return <String, dynamic>{
+        'question_id': _questionIds[index],
+        'question_text': '서버 질문 ${index + 1}',
+        'question_type': isFirst
+            ? 'multiple_choice'
+            : isLast
+            ? 'text'
+            : 'single_choice',
+        'options': isLast ? <String>[] : <String>['선택 1', '선택 2'],
+        'required': isFirst,
+        'answer': isFirst
+            ? <String>[]
+            : isLast
+            ? ''
+            : null,
+      };
+    }),
+  },
+  'submitted_at': null,
+  'updated_at': '2026-08-05T16:10:00+09:00',
+};
 
 Map<String, dynamic> _formJson({required String status, String? submittedAt}) =>
     <String, dynamic>{

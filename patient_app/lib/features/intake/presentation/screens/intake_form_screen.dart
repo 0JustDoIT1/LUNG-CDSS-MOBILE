@@ -57,8 +57,8 @@ class _IntakeFormScreenState extends ConsumerState<IntakeFormScreen> {
       final error = ref.read(intakeFormProvider.notifier).lastError;
       _message(
         error is FormatException
-            ? '필수 문항에 모두 답변해 주세요.'
-            : _actionErrorMessage('문진을 제출하지 못했습니다.'),
+            ? '필수 문항을 모두 작성해 주세요.'
+            : _actionErrorMessage('문진을 저장하지 못했습니다.'),
       );
       return;
     }
