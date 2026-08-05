@@ -1,9 +1,7 @@
 import '../../../core/network/api_client.dart';
 
 class AuthApi {
-  AuthApi({
-    required ApiClient apiClient,
-  }) : _apiClient = apiClient;
+  AuthApi({required ApiClient apiClient}) : _apiClient = apiClient;
 
   final ApiClient _apiClient;
 
@@ -13,10 +11,7 @@ class AuthApi {
   }) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       '/api/auth/patient/social-login/',
-      data: {
-        'provider': provider,
-        'token': token,
-      },
+      data: {'provider': provider, 'token': token},
     );
 
     return response.data ?? <String, dynamic>{};
@@ -49,12 +44,12 @@ class AuthApi {
     return response.data ?? <String, dynamic>{};
   }
 
-  Future<Map<String, dynamic>> getPatientProfile() async {
-    final response = await _apiClient.get<Map<String, dynamic>>(
+  Future<dynamic> getPatientProfile() async {
+    final response = await _apiClient.get<dynamic>(
       '/api/auth/patient/profile/',
     );
 
-    return response.data ?? <String, dynamic>{};
+    return response.data;
   }
 
   Future<Map<String, dynamic>> refreshToken({
@@ -62,22 +57,16 @@ class AuthApi {
   }) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       '/api/auth/refresh/',
-      data: {
-        'refresh': refreshToken,
-      },
+      data: {'refresh': refreshToken},
     );
 
     return response.data ?? <String, dynamic>{};
   }
 
-  Future<void> logout({
-    required String refreshToken,
-  }) async {
+  Future<void> logout({required String refreshToken}) async {
     await _apiClient.post<void>(
       '/api/auth/logout/',
-      data: {
-        'refresh': refreshToken,
-      },
+      data: {'refresh': refreshToken},
     );
   }
 }

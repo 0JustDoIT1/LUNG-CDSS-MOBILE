@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loading_view.dart';
+import '../../../../core/network/api_exception.dart';
 import '../providers/home_summary_provider.dart';
 import '../providers/patient_provider.dart';
 import '../widgets/home_header.dart';
@@ -12,8 +13,6 @@ import '../widgets/medication_appointment_cards.dart';
 import '../widgets/home_quick_menu.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/routes/route_names.dart';
-
-
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -25,11 +24,9 @@ class HomeScreen extends ConsumerWidget {
 
     return SafeArea(
       child: patientState.when(
-        loading: () => const AppLoadingView(
-          message: '홈 정보를 불러오는 중입니다.',
-        ),
+        loading: () => const AppLoadingView(message: '홈 정보를 불러오는 중입니다.'),
         error: (error, stackTrace) => AppErrorView(
-          message: '환자 정보를 다시 불러와주세요.',
+          message: _profileErrorMessage(error),
           onRetry: () {
             ref.invalidate(patientProfileProvider);
             ref.invalidate(homeSummaryProvider);
@@ -37,9 +34,7 @@ class HomeScreen extends ConsumerWidget {
         ),
         data: (patient) {
           return summaryState.when(
-            loading: () => const AppLoadingView(
-              message: '홈 정보를 불러오는 중입니다.',
-            ),
+            loading: () => const AppLoadingView(message: '홈 정보를 불러오는 중입니다.'),
             error: (error, stackTrace) => AppErrorView(
               message: '건강 요약 정보를 다시 불러와주세요.',
               onRetry: () {
@@ -58,17 +53,11 @@ class HomeScreen extends ConsumerWidget {
                   ]);
                 },
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(
-                    20,
-                    20,
-                    20,
-                    120,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
                   children: [
                     HomeHeader(
                       patient: patient,
-                      unreadNotificationCount:
-                          summary.unreadNotificationCount,
+                      unreadNotificationCount: summary.unreadNotificationCount,
                     ),
                     const SizedBox(height: 32),
 
@@ -83,14 +72,10 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 32),
 
-                    LatestTestCard(
-                      summary: summary,
-                    ),
+                    LatestTestCard(summary: summary),
                     const SizedBox(height: 32),
 
-                    MedicationAppointmentCards(
-                      summary: summary,
-                    ),
+                    MedicationAppointmentCards(summary: summary),
                     const SizedBox(height: 32),
 
                     const HomeQuickMenu(),
@@ -103,5 +88,28 @@ class HomeScreen extends ConsumerWidget {
       ),
     );
   }
-}
 
+  static String _profileErrorMessage(Object error) {
+    if (error is FormatException) {
+      return '프로필 정보 형식을 확인할 수 없습니다.';
+    }
+    if (error is ApiException) {
+      if (error.statusCode == 401) {
+        return '인증 정보가 만료됐거나 유효하지 않습니다.';
+      }
+      if (error.statusCode == 403) {
+        return '프로필 정보를 조회할 권한이 없습니다.';
+      }
+      if (error.statusCode == 404) {
+        return '환자 프로필을 찾을 수 없습니다.';
+      }
+      if (error.code == 'TIMEOUT') {
+        return '서버 응답 시간이 초과되었습니다.';
+      }
+      if (error.code == 'CONNECTION_ERROR') {
+        return '네트워크 연결을 확인해주세요.';
+      }
+    }
+    return '프로필 정보를 불러오지 못했습니다.';
+  }
+}

@@ -2,13 +2,12 @@ import '../../../core/auth/token_storage.dart';
 import 'auth_api.dart';
 import 'models/auth_result.dart';
 import 'models/hospital.dart';
+import 'models/patient_profile.dart';
 
 class AuthRepository {
-  AuthRepository({
-    required AuthApi authApi,
-    required TokenStorage tokenStorage,
-  })  : _authApi = authApi,
-        _tokenStorage = tokenStorage;
+  AuthRepository({required AuthApi authApi, required TokenStorage tokenStorage})
+    : _authApi = authApi,
+      _tokenStorage = tokenStorage;
 
   final AuthApi _authApi;
   final TokenStorage _tokenStorage;
@@ -17,10 +16,7 @@ class AuthRepository {
     required String provider,
     required String token,
   }) async {
-    final json = await _authApi.socialLogin(
-      provider: provider,
-      token: token,
-    );
+    final json = await _authApi.socialLogin(provider: provider, token: token);
 
     final result = AuthResult.fromJson(json);
 
@@ -39,9 +35,7 @@ class AuthRepository {
       return result;
     }
 
-    throw const FormatException(
-      '소셜 로그인 응답에 JWT 또는 signup_token이 없습니다.',
-    );
+    throw const FormatException('소셜 로그인 응답에 JWT 또는 signup_token이 없습니다.');
   }
 
   Future<Hospital> getHospital() async {
@@ -49,9 +43,7 @@ class AuthRepository {
     final hospital = Hospital.fromJson(json);
 
     if (hospital.id.isEmpty) {
-      throw const FormatException(
-        '병원 조회 응답에 hospital id가 없습니다.',
-      );
+      throw const FormatException('병원 조회 응답에 hospital id가 없습니다.');
     }
 
     return hospital;
@@ -65,9 +57,7 @@ class AuthRepository {
     final signupToken = await _tokenStorage.readSignupToken();
 
     if (signupToken == null || signupToken.isEmpty) {
-      throw StateError(
-        '저장된 signup_token이 없습니다. 소셜 로그인을 다시 진행해주세요.',
-      );
+      throw StateError('저장된 signup_token이 없습니다. 소셜 로그인을 다시 진행해주세요.');
     }
 
     final json = await _authApi.registerPatient(
@@ -80,9 +70,7 @@ class AuthRepository {
     final result = AuthResult.fromJson(json);
 
     if (!result.isExistingMember) {
-      throw const FormatException(
-        '회원가입 응답에 access 또는 refresh 토큰이 없습니다.',
-      );
+      throw const FormatException('회원가입 응답에 access 또는 refresh 토큰이 없습니다.');
     }
 
     await _tokenStorage.saveTokens(
@@ -93,8 +81,12 @@ class AuthRepository {
     await _tokenStorage.deleteSignupToken();
   }
 
-  Future<Map<String, dynamic>> getPatientProfile() {
-    return _authApi.getPatientProfile();
+  Future<PatientProfile> getPatientProfile() async {
+    final json = await _authApi.getPatientProfile();
+    if (json is! Map<String, dynamic>) {
+      throw const FormatException('환자 프로필 응답은 객체여야 합니다.');
+    }
+    return PatientProfile.fromJson(json);
   }
 
   Future<bool> hasAccessToken() async {

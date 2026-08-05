@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
-import '../../../../data/models/patient_profile.dart';
+import '../../../auth/data/models/patient_profile.dart';
 
 class HomeHeader extends StatelessWidget {
   const HomeHeader({
@@ -41,9 +41,7 @@ class HomeHeader extends StatelessWidget {
             children: [
               Text(
                 '${patient.name}님, 안녕하세요',
-                style: AppTextStyles.headlineMedium.copyWith(
-                  fontSize: 20,
-                ),
+                style: AppTextStyles.headlineMedium.copyWith(fontSize: 20),
               ),
               const SizedBox(height: 4),
               Text(
@@ -66,10 +64,7 @@ class HomeHeader extends StatelessWidget {
               onPressed: () {
                 context.push(RouteNames.notifications);
               },
-              icon: const Icon(
-                Icons.notifications_none_rounded,
-                size: 28,
-              ),
+              icon: const Icon(Icons.notifications_none_rounded, size: 28),
             ),
             if (unreadNotificationCount > 0)
               Positioned(
@@ -80,9 +75,7 @@ class HomeHeader extends StatelessWidget {
                     minWidth: 18,
                     minHeight: 18,
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   decoration: const BoxDecoration(
                     color: AppColors.danger,
                     shape: BoxShape.circle,
