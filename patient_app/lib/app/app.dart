@@ -27,8 +27,13 @@ class _SumItAppState extends ConsumerState<SumItApp> {
         .read(authSessionCoordinatorProvider)
         .onExpired
         .listen((_) => appRouter.go(RouteNames.login));
-    Future<void>.microtask(() {
-      return ref.read(notificationDeepLinkCoordinatorProvider).start();
+    Future<void>.microtask(() async {
+      try {
+        await ref.read(notificationDisplayServiceProvider).start();
+      } catch (_) {
+        // Notification presentation must not block deep-link initialization.
+      }
+      await ref.read(notificationDeepLinkCoordinatorProvider).start();
     });
   }
 

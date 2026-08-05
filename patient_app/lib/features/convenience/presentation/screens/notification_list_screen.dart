@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -74,16 +76,11 @@ class NotificationListScreen extends ConsumerWidget {
     );
   }
 
-  static Future<void> _handleNotificationTap(
+  static void _handleNotificationTap(
     BuildContext context,
     WidgetRef ref,
     PatientNotification notification,
-  ) async {
-    if (!notification.isRead) {
-      await _markAsRead(context, ref, notification.id);
-      if (!context.mounted) return;
-    }
-
+  ) {
     final result = ref
         .read(notificationDeepLinkCoordinatorProvider)
         .handleInAppDeepLink(notification.deepLink);
@@ -92,53 +89,19 @@ class NotificationListScreen extends ConsumerWidget {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('해당 알림의 화면을 열 수 없습니다.')));
+    } else if (!notification.isRead) {
+      unawaited(_markAsRead(ref, notification.id));
     }
   }
 
-  static Future<void> _markAsRead(
-    BuildContext context,
-    WidgetRef ref,
-    String notificationId,
-  ) async {
+  static Future<void> _markAsRead(WidgetRef ref, String notificationId) async {
     try {
       await ref
           .read(notificationReadProvider.notifier)
           .markAsRead(notificationId);
-    } catch (error) {
-      if (!context.mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(_markAsReadErrorMessage(error))));
+    } catch (_) {
+      // Navigation already happened; keep the destination screen stable.
     }
-  }
-
-  static String _markAsReadErrorMessage(Object error) {
-    if (error is ApiException) {
-      if (error.statusCode == 401) {
-        return '인증 정보가 만료됐거나 유효하지 않습니다.';
-      }
-
-      if (error.statusCode == 403) {
-        return '알림을 변경할 권한이 없습니다.';
-      }
-
-      if (error.statusCode == 404) {
-        return '해당 알림을 찾을 수 없습니다.';
-      }
-
-      if (error.code == 'TIMEOUT') {
-        return '서버 응답 시간이 초과되었습니다.';
-      }
-
-      if (error.code == 'CONNECTION_ERROR') {
-        return '네트워크 연결을 확인해주세요.';
-      }
-    }
-
-    return '알림을 읽음 처리하지 못했습니다.';
   }
 
   static String _errorMessage(Object error) {

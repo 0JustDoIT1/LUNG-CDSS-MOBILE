@@ -28,7 +28,7 @@ abstract final class NotificationDeepLinkParser {
       return null;
     }
 
-    if (segments.length == 2 && segments[1].trim().isNotEmpty) {
+    if (segments.length == 2 && _isValidId(segments[1])) {
       return switch (segments[0]) {
         'results' => NotificationDestination(
           type: NotificationDestinationType.result,
@@ -53,7 +53,7 @@ abstract final class NotificationDeepLinkParser {
     if (segments.length == 3 &&
         segments[0] == 'medications' &&
         segments[1] == 'logs' &&
-        segments[2].trim().isNotEmpty) {
+        _isValidId(segments[2])) {
       return NotificationDestination(
         type: NotificationDestinationType.medication,
         id: segments[2],
@@ -61,5 +61,14 @@ abstract final class NotificationDeepLinkParser {
     }
 
     return null;
+  }
+
+  static bool _isValidId(String value) {
+    final id = value.trim();
+    return id.isNotEmpty &&
+        id == value &&
+        !id.contains('{') &&
+        !id.contains('}') &&
+        !id.contains(RegExp(r'\s'));
   }
 }

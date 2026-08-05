@@ -117,6 +117,22 @@ void main() {
       NotificationNavigationResult.duplicate,
     );
   });
+
+  test('prevents two immediate pushes to the same destination', () async {
+    final router = _router();
+    final coordinator = _coordinator(router: router);
+
+    expect(
+      coordinator.handleInAppDeepLink('/results/case-id'),
+      NotificationNavigationResult.navigated,
+    );
+    expect(
+      coordinator.handleInAppDeepLink('/results/case-id'),
+      NotificationNavigationResult.duplicate,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(router.routeInformationProvider.value.uri.path, '/results/case-id');
+  });
 }
 
 NotificationDeepLinkCoordinator _coordinator({

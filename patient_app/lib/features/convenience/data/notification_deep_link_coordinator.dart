@@ -29,6 +29,7 @@ class NotificationDeepLinkCoordinator {
   StreamSubscription<String?>? _openedSubscription;
   NotificationDestination? _pendingDestination;
   bool _navigationReady = false;
+  String? _navigationInProgressLocation;
 
   Future<void> start() async {
     if (_openedSubscription != null) return;
@@ -90,7 +91,10 @@ class NotificationDeepLinkCoordinator {
   }) {
     final location = switch (destination.type) {
       NotificationDestinationType.result =>
-        '${RouteNames.results}/${Uri.encodeComponent(destination.id)}',
+        RouteNames.resultDetail.replaceFirst(
+          ':resultId',
+          Uri.encodeComponent(destination.id),
+        ),
       NotificationDestinationType.appointment =>
         '${RouteNames.appointments}/${Uri.encodeComponent(destination.id)}',
       NotificationDestinationType.medication => RouteNames.medication,
@@ -100,15 +104,32 @@ class NotificationDeepLinkCoordinator {
 
     final currentLocation = _router.routeInformationProvider.value.uri
         .toString();
-    if (currentLocation == location) {
+    if (currentLocation == location ||
+        _navigationInProgressLocation == location) {
       return NotificationNavigationResult.duplicate;
     }
     if (replace) {
       _router.go(location);
     } else {
-      unawaited(_router.push<void>(location));
+      _navigationInProgressLocation = location;
+      unawaited(
+        _router
+            .push<void>(location)
+            .then<void>(
+              (_) => _clearNavigationInProgress(location),
+              onError: (Object _, StackTrace _) {
+                _clearNavigationInProgress(location);
+              },
+            ),
+      );
     }
     return NotificationNavigationResult.navigated;
+  }
+
+  void _clearNavigationInProgress(String location) {
+    if (_navigationInProgressLocation == location) {
+      _navigationInProgressLocation = null;
+    }
   }
 
   Future<void> dispose() async {

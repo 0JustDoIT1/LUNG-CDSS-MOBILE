@@ -35,6 +35,9 @@ void main() {
     '/results/',
     '/unknown/id',
     '/results/id/extra',
+    '/results/{case_id}',
+    '/results/%7Bcase_id%7D',
+    '/results/case%20id',
     '/medications/logs',
   ]) {
     test('rejects invalid link $value', () {

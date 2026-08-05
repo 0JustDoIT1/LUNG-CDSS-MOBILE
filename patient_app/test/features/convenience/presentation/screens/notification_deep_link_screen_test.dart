@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,75 +20,95 @@ void main() {
   testWidgets('marks an unread notification and opens its valid deep link', (
     tester,
   ) async {
-    final router = _router();
-    final repository = _FakeRepository();
-    final coordinator = _RecordingCoordinator(router);
-    await _pump(
-      tester,
-      router,
-      repository,
-      _notification(isRead: false),
-      coordinator,
-    );
+    final fixture = await _pump(tester, _notification(isRead: false));
 
-    await tester.tap(find.text('검사 결과 알림'));
+    await tester.tap(find.text('notification-title'));
     await tester.pumpAndSettle();
 
-    expect(repository.readIds, ['notification-id']);
-    expect(coordinator.handledLinks, ['/results/case-id']);
+    expect(fixture.repository.readIds, ['notification-id']);
+    expect(fixture.coordinator.handledLinks, ['/results/case-id']);
   });
 
   testWidgets('allows a read notification to navigate without another POST', (
     tester,
   ) async {
-    final router = _router();
-    final repository = _FakeRepository();
-    final coordinator = _RecordingCoordinator(router);
-    await _pump(
-      tester,
-      router,
-      repository,
-      _notification(isRead: true),
-      coordinator,
-    );
+    final fixture = await _pump(tester, _notification(isRead: true));
 
-    await tester.tap(find.text('검사 결과 알림'));
+    await tester.tap(find.text('notification-title'));
     await tester.pumpAndSettle();
 
-    expect(repository.readIds, isEmpty);
-    expect(coordinator.handledLinks, ['/results/case-id']);
+    expect(fixture.repository.readIds, isEmpty);
+    expect(fixture.coordinator.handledLinks, ['/results/case-id']);
+  });
+
+  testWidgets('navigates before unread mark-as-read completes', (tester) async {
+    final repository = _FakeRepository(delayRead: true);
+    final fixture = await _pump(
+      tester,
+      _notification(isRead: false),
+      repository: repository,
+    );
+
+    await tester.tap(find.text('notification-title'));
+    await tester.pump();
+
+    expect(repository.readIds, ['notification-id']);
+    expect(fixture.coordinator.handledLinks, ['/results/case-id']);
+    repository.completeRead();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('still navigates when mark-as-read fails', (tester) async {
+    final repository = _FakeRepository(readError: StateError('failed'));
+    final fixture = await _pump(
+      tester,
+      _notification(isRead: false),
+      repository: repository,
+    );
+
+    await tester.tap(find.text('notification-title'));
+    await tester.pumpAndSettle();
+
+    expect(repository.readIds, ['notification-id']);
+    expect(fixture.coordinator.handledLinks, ['/results/case-id']);
   });
 
   testWidgets('shows a safe message for an invalid deep link', (tester) async {
-    final router = _router();
-    final coordinator = _RecordingCoordinator(router);
-    await _pump(
+    final fixture = await _pump(
       tester,
-      router,
-      _FakeRepository(),
       _notification(isRead: true, deepLink: '/unknown/id'),
-      coordinator,
     );
 
-    await tester.tap(find.text('검사 결과 알림'));
+    await tester.tap(find.text('notification-title'));
     await tester.pump();
 
-    expect(find.text('해당 알림의 화면을 열 수 없습니다.'), findsOneWidget);
-    expect(router.routeInformationProvider.value.uri.path, '/notifications');
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(
+      fixture.router.routeInformationProvider.value.uri.path,
+      '/notifications',
+    );
   });
 }
 
-Future<void> _pump(
+Future<
+  ({
+    GoRouter router,
+    _FakeRepository repository,
+    _RecordingCoordinator coordinator,
+  })
+>
+_pump(
   WidgetTester tester,
-  GoRouter router,
-  NotificationRepository repository,
-  PatientNotification notification,
-  NotificationDeepLinkCoordinator coordinator,
-) async {
+  PatientNotification notification, {
+  _FakeRepository? repository,
+}) async {
+  final router = _router();
+  final resolvedRepository = repository ?? _FakeRepository();
+  final coordinator = _RecordingCoordinator(router);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        notificationRepositoryProvider.overrideWithValue(repository),
+        notificationRepositoryProvider.overrideWithValue(resolvedRepository),
         notificationsProvider.overrideWith((ref) async => [notification]),
         notificationDeepLinkCoordinatorProvider.overrideWithValue(coordinator),
       ],
@@ -94,6 +116,11 @@ Future<void> _pump(
     ),
   );
   await tester.pumpAndSettle();
+  return (
+    router: router,
+    repository: resolvedRepository,
+    coordinator: coordinator,
+  );
 }
 
 GoRouter _router() => GoRouter(
@@ -105,7 +132,7 @@ GoRouter _router() => GoRouter(
     ),
     GoRoute(
       path: '/results/:id',
-      builder: (_, _) => const Scaffold(body: Text('상세')),
+      builder: (_, _) => const Scaffold(body: Text('detail')),
     ),
   ],
 );
@@ -116,20 +143,31 @@ PatientNotification _notification({
 }) => PatientNotification(
   id: 'notification-id',
   category: 'case_review',
-  title: '검사 결과 알림',
-  body: '결과가 공개되었습니다.',
+  title: 'notification-title',
+  body: 'notification-body',
   deepLink: deepLink,
   isRead: isRead,
   createdAt: DateTime(2026, 8, 5),
 );
 
 class _FakeRepository extends NotificationRepository {
-  _FakeRepository() : super(NotificationApi(ApiClient(dio: Dio())));
+  _FakeRepository({this.delayRead = false, this.readError})
+    : super(NotificationApi(ApiClient(dio: Dio())));
+
+  final bool delayRead;
+  final Object? readError;
+  final Completer<void> _readCompleter = Completer<void>();
   final List<String> readIds = [];
+
+  void completeRead() {
+    if (!_readCompleter.isCompleted) _readCompleter.complete();
+  }
 
   @override
   Future<void> markAsRead(String notificationId) async {
     readIds.add(notificationId);
+    if (delayRead) await _readCompleter.future;
+    if (readError case final error?) throw error;
   }
 }
 
