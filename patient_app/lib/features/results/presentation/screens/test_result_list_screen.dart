@@ -6,7 +6,6 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_error_view.dart';
-import '../../../../core/widgets/app_loading_view.dart';
 import '../../data/models/patient_result_summary.dart';
 import '../providers/test_result_provider.dart';
 
@@ -21,7 +20,7 @@ class TestResultListScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('검사 결과')),
       body: SafeArea(
         child: resultState.when(
-          loading: () => const AppLoadingView(message: '검사 결과를 불러오는 중입니다.'),
+          loading: () => const _ResultListSkeleton(),
           error: (error, stackTrace) => AppErrorView(
             message: _errorMessage(error),
             onRetry: () {
@@ -83,6 +82,187 @@ class TestResultListScreen extends ConsumerWidget {
     }
 
     return '검사 결과를 불러오지 못했습니다. 다시 시도해 주세요.';
+  }
+}
+
+class _ResultListSkeleton extends StatefulWidget {
+  const _ResultListSkeleton();
+
+  @override
+  State<_ResultListSkeleton> createState() => _ResultListSkeletonState();
+}
+
+class _ResultListSkeletonState extends State<_ResultListSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _controller.repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+          children: [
+            _ShimmerBone(
+              width: 140,
+              height: 22,
+              borderRadius: 8,
+              progress: _animation.value,
+            ),
+            const SizedBox(height: 20),
+            _ResultSkeletonCard(progress: _animation.value),
+            const SizedBox(height: 14),
+            _ResultSkeletonCard(progress: _animation.value),
+            const SizedBox(height: 18),
+            Text(
+              '검사 결과를 불러오는 중입니다.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ResultSkeletonCard extends StatelessWidget {
+  const _ResultSkeletonCard({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 154,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ShimmerBone(
+            width: 52,
+            height: 52,
+            borderRadius: 16,
+            progress: progress,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FractionallySizedBox(
+                  widthFactor: 0.9,
+                  alignment: Alignment.centerLeft,
+                  child: _ShimmerBone(
+                    width: double.infinity,
+                    height: 18,
+                    borderRadius: 7,
+                    progress: progress,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FractionallySizedBox(
+                  widthFactor: 0.62,
+                  alignment: Alignment.centerLeft,
+                  child: _ShimmerBone(
+                    width: double.infinity,
+                    height: 14,
+                    borderRadius: 6,
+                    progress: progress,
+                  ),
+                ),
+                const Spacer(),
+                _ShimmerBone(
+                  width: 74,
+                  height: 28,
+                  borderRadius: 14,
+                  progress: progress,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: _ShimmerBone(
+              width: 20,
+              height: 20,
+              borderRadius: 6,
+              progress: progress,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShimmerBone extends StatelessWidget {
+  const _ShimmerBone({
+    required this.width,
+    required this.height,
+    required this.borderRadius,
+    required this.progress,
+  });
+
+  final double width;
+  final double height;
+  final double borderRadius;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final offset = -1.5 + (progress * 3);
+
+    return ShaderMask(
+      blendMode: BlendMode.srcATop,
+      shaderCallback: (bounds) {
+        return LinearGradient(
+          begin: Alignment(offset - 1, 0),
+          end: Alignment(offset + 1, 0),
+          colors: const [
+            Color(0xFFE7F0F6),
+            Color(0xFFF8FCFF),
+            Color(0xFFE7F0F6),
+          ],
+          stops: const [0.25, 0.5, 0.75],
+        ).createShader(bounds);
+      },
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE7F0F6),
+          borderRadius: BorderRadius.circular(borderRadius),
+        ),
+      ),
+    );
   }
 }
 

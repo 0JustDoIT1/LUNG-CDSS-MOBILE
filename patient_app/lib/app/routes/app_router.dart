@@ -1,7 +1,6 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import '../../core/widgets/main_shell.dart';
-import '../../core/widgets/placeholder_screen.dart';
 import 'route_names.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
@@ -12,6 +11,7 @@ import '../../features/auth/presentation/screens/biometric_auth_screen.dart';
 import '../../features/results/presentation/screens/test_result_list_screen.dart';
 import '../../features/results/presentation/screens/test_result_detail_screen.dart';
 import '../../features/symptom/presentation/screens/symptom_medication_screen.dart';
+import '../../features/medication/presentation/screens/medication_management_screen.dart';
 import '../../features/symptom/presentation/screens/symptom_record_form_screen.dart';
 import '../../features/symptom/presentation/screens/symptom_record_list_screen.dart';
 import '../../features/appointment/presentation/screens/appointment_list_screen.dart';
@@ -206,9 +206,7 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: RouteNames.medication,
       builder: (context, state) {
-        return const PlaceholderScreen(
-          title: '복약관리',
-        );
+        return const MedicationManagementScreen();
       },
     ),
 

@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../auth/data/models/patient_profile.dart';
+import '../../../convenience/presentation/providers/notification_provider.dart';
 
-class HomeHeader extends StatelessWidget {
-  const HomeHeader({
-    required this.patient,
-    required this.unreadNotificationCount,
-    super.key,
-  });
+class HomeHeader extends ConsumerWidget {
+  const HomeHeader({required this.patient, super.key});
 
   final PatientProfile patient;
-  final int unreadNotificationCount;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unreadNotificationCount =
+        ref.watch(unreadNotificationCountProvider) ?? 0;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -82,8 +82,8 @@ class HomeHeader extends StatelessWidget {
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    unreadNotificationCount > 9
-                        ? '9+'
+                    unreadNotificationCount > 99
+                        ? '99+'
                         : '$unreadNotificationCount',
                     style: const TextStyle(
                       color: Colors.white,

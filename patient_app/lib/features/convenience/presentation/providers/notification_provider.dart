@@ -25,6 +25,17 @@ final notificationsProvider = FutureProvider<List<PatientNotification>>((
   return repository.getNotifications();
 });
 
+final unreadNotificationCountProvider = Provider<int?>((ref) {
+  final notificationsState = ref.watch(notificationsProvider);
+  final notifications = notificationsState.asData?.value;
+
+  if (notifications == null) {
+    return null;
+  }
+
+  return notifications.where((notification) => !notification.isRead).length;
+});
+
 final notificationReadProvider =
     NotifierProvider<NotificationReadNotifier, Set<String>>(
       NotificationReadNotifier.new,

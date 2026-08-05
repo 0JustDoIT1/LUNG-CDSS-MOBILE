@@ -37,7 +37,9 @@ class SymptomMedicationScreen extends ConsumerWidget {
             _SectionHeader(
               title: '오늘의 복약',
               actionText: '복약관리',
-              onPressed: () {},
+              onPressed: () {
+                context.push(RouteNames.medication);
+              },
             ),
             const SizedBox(height: 14),
 
