@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../core/api/auth_api.dart';
+import '../../../core/api/communication_api.dart';
+import '../../../core/auth/session_controller.dart';
 import '../../../core/theme/app_theme.dart';
-import '../mock/chat_mock.dart';
-import '../mock/notification_mock.dart';
+import '../models/notification.dart';
 import 'notification_screen.dart';
 import 'tabs/chat_tab.dart';
 import 'tabs/home_tab.dart';
@@ -14,6 +17,7 @@ import 'tabs/settings_tab.dart';
 /// 순서: 예약큐 / 담당환자 / 홈(중앙) / 채팅 / 설정
 ///
 /// 상단바는 탭이 바뀌어도 고정 — 좌측 로고+앱이름, 우측 QR/알림 아이콘.
+/// 채팅/알림 안읽음 개수는 실제 API 기반(화면 진입 시 + 알림/채팅 화면 다녀오면 갱신).
 class NurseHomeScreen extends StatefulWidget {
   const NurseHomeScreen({super.key});
 
@@ -23,21 +27,39 @@ class NurseHomeScreen extends StatefulWidget {
 
 class _NurseHomeScreenState extends State<NurseHomeScreen> {
   int _tabIndex = 2; // 앱 시작 시 홈 탭이 기본으로 보이도록
+  int _unreadChatCount = 0;
+  int _unreadNotificationCount = 0;
 
-  int get _unreadCount =>
-      mockChatThreads().fold(0, (sum, t) => sum + t.unreadCount);
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshBadges());
+  }
 
-  int get _unreadNotificationCount =>
-      mockNotifications().where((n) => !n.isRead).length;
+  Future<void> _refreshBadges() async {
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
 
-  static const _tabs = [
+    try {
+      final threads = await fetchChatThreads(token);
+      final notifications = await fetchNotifications(token, AppNotification.fromJson);
+      if (!mounted) return;
+      setState(() {
+        _unreadChatCount = threads.fold(0, (sum, t) => sum + t.unreadCount);
+        _unreadNotificationCount = notifications.where((n) => !n.isRead).length;
+      });
+    } on ApiException catch (_) {
+      // 뱃지 갱신 실패는 조용히 무시
+    }
+  }
 
-    QueueTab(),
-    NursePatientsTab(),
-    NurseHomeTab(),
-    NurseChatTab(),
-    NurseSettingsTab(),
-  ];
+  List<Widget> get _tabs => const [
+        QueueTab(),
+        NursePatientsTab(),
+        NurseHomeTab(),
+        NurseChatTab(),
+        NurseSettingsTab(),
+      ];
 
   void _scanQr() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -72,10 +94,11 @@ class _NurseHomeScreenState extends State<NurseHomeScreen> {
           ),
           IconButton(
             tooltip: '알림',
-            onPressed: () {
-              Navigator.of(context).push(
+            onPressed: () async {
+              await Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const NotificationScreen()),
               );
+              _refreshBadges();
             },
             icon: _unreadNotificationCount > 0
                 ? Badge(
@@ -89,7 +112,10 @@ class _NurseHomeScreenState extends State<NurseHomeScreen> {
       body: IndexedStack(index: _tabIndex, children: _tabs),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tabIndex,
-        onDestinationSelected: (i) => setState(() => _tabIndex = i),
+        onDestinationSelected: (i) {
+          setState(() => _tabIndex = i);
+          if (i == 3) _refreshBadges();
+        },
         destinations: [
           NavigationDestination(icon: Icon(Icons.calendar_month), label: '예약관리'),
           NavigationDestination(icon: Icon(Icons.favorite), label: '케어'),
@@ -105,9 +131,9 @@ class _NurseHomeScreenState extends State<NurseHomeScreen> {
             label: '홈',
           ),
           NavigationDestination(
-            icon: _unreadCount > 0
+            icon: _unreadChatCount > 0
                 ? Badge(
-                    label: Text('$_unreadCount'),
+                    label: Text('$_unreadChatCount'),
                     child: const Icon(Icons.chat_bubble_outline),
                   )
                 : const Icon(Icons.chat_bubble_outline),

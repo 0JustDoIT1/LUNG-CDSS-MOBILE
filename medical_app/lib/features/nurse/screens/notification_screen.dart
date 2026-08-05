@@ -21,6 +21,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   IconData _iconFor(NotificationType type) => switch (type) {
+        NotificationType.medication => Icons.medication_outlined,
         NotificationType.appointment => Icons.schedule,
         NotificationType.chat => Icons.chat_bubble_outline,
         NotificationType.triage => Icons.priority_high,

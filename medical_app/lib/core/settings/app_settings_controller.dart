@@ -14,6 +14,7 @@ class AppSettingsController extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
   double _fontScale = 1.0;
   final Map<String, bool> _notifications = {
+    '복약': true,
     '예약': true,
     '채팅': true,
     '증상위험도(트리아지)': true,

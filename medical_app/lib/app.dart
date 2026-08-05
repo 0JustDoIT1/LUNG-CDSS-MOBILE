@@ -15,7 +15,7 @@ class MedicalApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => SessionController()),
+        ChangeNotifierProvider(create: (_) => SessionController()..restore()),
         ChangeNotifierProvider(create: (_) => AppSettingsController()..load()),
       ],
       child: const _MedicalAppView(),

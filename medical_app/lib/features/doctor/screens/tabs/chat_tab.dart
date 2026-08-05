@@ -1,37 +1,93 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../../mock/chat_mock.dart';
-import '../../models/chat.dart';
+import '../../../../core/api/auth_api.dart';
+import '../../../../core/api/communication_api.dart' as api;
+import '../../../../core/auth/session_controller.dart';
+import '../../models/chat.dart' as local;
 import '../chat_room_screen.dart';
 
-/// 탭 4: 간호사 채팅 목록.
-/// TODO: 실제 연결 시 mockChatThreads() 대신 API/WebSocket으로 교체.
-class ChatTab extends StatelessWidget {
+/// 탭 4: 간호사 채팅 목록. 실제 API(GET /api/communication/threads/) 연동됨.
+/// TODO: 채팅방 안 메시지 조회/전송은 아직 mock — 메시지 API 응답 형식 확인되면 연결.
+class ChatTab extends StatefulWidget {
   const ChatTab({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final threads = mockChatThreads()
-      ..sort((a, b) => b.lastMessageAt.compareTo(a.lastMessageAt));
+  State<ChatTab> createState() => _ChatTabState();
+}
 
+class _ChatTabState extends State<ChatTab> {
+  List<api.ChatThread>? _threads;
+  String? _errorMessage;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+
+    try {
+      final threads = await api.fetchChatThreads(token);
+      if (!mounted) return;
+      setState(() {
+        _threads = threads;
+        _isLoading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.message;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            const SizedBox(height: 8),
+            TextButton(onPressed: _load, child: const Text('다시 시도')),
+          ],
+        ),
+      );
+    }
+
+    final threads = _threads ?? [];
     if (threads.isEmpty) {
       return const Center(child: Text('대화 중인 채팅이 없어요'));
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: threads.length,
-      separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
-      itemBuilder: (context, index) {
-        final t = threads[index];
-        return _ThreadTile(thread: t);
-      },
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: threads.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
+        itemBuilder: (context, index) => _ThreadTile(thread: threads[index]),
+      ),
     );
   }
 }
 
 class _ThreadTile extends StatelessWidget {
-  final ChatThread thread;
+  final api.ChatThread thread;
 
   const _ThreadTile({required this.thread});
 
@@ -51,11 +107,11 @@ class _ThreadTile extends StatelessWidget {
         radius: 24,
         backgroundColor: Colors.grey.shade200,
         child: Text(
-          thread.partnerName.substring(0, 1),
+          thread.otherParticipantName.isNotEmpty ? thread.otherParticipantName.substring(0, 1) : '?',
           style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black54),
         ),
       ),
-      title: Text(thread.partnerName, style: const TextStyle(fontWeight: FontWeight.w600)),
+      title: Text(thread.otherParticipantName, style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text(
         thread.lastMessage,
         maxLines: 1,
@@ -67,7 +123,7 @@ class _ThreadTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
-            _timeLabel(thread.lastMessageAt),
+            _timeLabel(thread.createdAt),
             style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
           ),
           if (thread.unreadCount > 0) ...[
@@ -87,8 +143,19 @@ class _ThreadTile extends StatelessWidget {
         ],
       ),
       onTap: () {
+        // 채팅방(메시지 조회/전송)은 아직 mock — 실제 API 확인되면 여기서 real thread.id 넘기게 교체.
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => ChatRoomScreen(thread: thread)),
+          MaterialPageRoute(
+            builder: (_) => ChatRoomScreen(
+              thread: local.ChatThread(
+                id: thread.id,
+                partnerName: thread.otherParticipantName,
+                lastMessage: thread.lastMessage,
+                lastMessageAt: thread.createdAt,
+                unreadCount: thread.unreadCount,
+              ),
+            ),
+          ),
         );
       },
     );

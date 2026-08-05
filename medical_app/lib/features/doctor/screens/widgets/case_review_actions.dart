@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../../core/api/auth_api.dart';
+import '../../../../core/api/cases_api.dart' as cases_api;
+import '../../../../core/auth/session_controller.dart';
 import '../../models/review_case.dart';
 
 /// 케이스 상세화면 하단에 고정으로 붙는 승인/반려 액션바.
+/// 실제 API(POST /api/cases/{id}/review/) 연동됨.
 ///
-/// - 승인: AI값 그대로 확정 → ConfirmedFinding 저장, CaseReviewLog(action=confirmed)
-/// - 반려: 바텀시트로 소견/아형 수정폼 → 수정값으로 ConfirmedFinding 저장,
-///        CaseReviewLog(action=edited)
-///
-/// TODO: 실제 저장은 API 붙을 때 연결. 지금은 스낵바로 결과만 확인.
+/// - 승인(action=confirm): AI값 그대로 확정
+/// - 반려(action=edit): 바텀시트로 소견/아형 수정 → 수정값으로 확정
+/// - 서버는 둘 다 status=confirmed로 처리 (승인/반려를 별도 상태로 구분하지 않음)
 class CaseReviewActionBar extends StatelessWidget {
   final ReviewCase reviewCase;
 
@@ -36,11 +39,25 @@ class CaseReviewActionBar extends StatelessWidget {
       ),
     );
 
-    if (confirmed == true && context.mounted) {
+    if (confirmed != true || !context.mounted) return;
+
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+
+    try {
+      await cases_api.reviewCase(
+        caseId: reviewCase.id,
+        accessToken: token,
+        action: 'confirm',
+      );
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${reviewCase.patientName} 케이스 승인 완료')),
       );
-      // TODO: CaseReviewLog(action: confirmed) 저장 API 연결
+      Navigator.of(context).pop(true); // 목록 화면에 "새로고침 필요" 신호
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -51,12 +68,27 @@ class CaseReviewActionBar extends StatelessWidget {
       builder: (context) => _RejectForm(reviewCase: reviewCase),
     );
 
-    if (result != null && context.mounted) {
+    if (result == null || !context.mounted) return;
+
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+
+    try {
+      await cases_api.reviewCase(
+        caseId: reviewCase.id,
+        accessToken: token,
+        action: 'edit',
+        finalSubtype: result.type.label, // 'LUAD' | 'LUSC'
+        finalNote: result.opinion,
+      );
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${reviewCase.patientName} 케이스 반려(수정) 완료')),
       );
-      // TODO: 수정값(result.type, result.opinion)으로
-      // ConfirmedFinding 저장 + CaseReviewLog(action: edited) API 연결
+      Navigator.of(context).pop(true); // 목록 화면에 "새로고침 필요" 신호
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -111,13 +143,12 @@ class _RejectForm extends StatefulWidget {
 
 class _RejectFormState extends State<_RejectForm> {
   late CaseType _type;
-  late TextEditingController _opinionController;
+  final TextEditingController _opinionController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _type = widget.reviewCase.type;
-    _opinionController = TextEditingController(text: widget.reviewCase.aiOpinion);
   }
 
   @override

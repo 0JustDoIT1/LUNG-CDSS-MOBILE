@@ -1,25 +1,106 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../api/auth_api.dart';
 import '../constants/user_role.dart';
 
 /// 로그인 상태 & 현재 역할(의사/간호사)을 앱 전역에서 들고 있는 컨트롤러.
+/// 실제 서버(POST /api/auth/staff/login/) 로그인 연동됨.
+/// 토큰은 SharedPreferences에 로컬 저장 — 앱 껐다 켜도 로그인 유지.
 ///
-/// 지금은 실제 인증(의사면허번호 API 검증 등)이 붙기 전이라
-/// [logIn]을 호출하면 바로 로그인된 것으로 처리하는 임시 구현이다.
-/// 나중에 실제 로그인 로직으로 교체할 지점.
+/// TODO: refresh 토큰으로 access 토큰 자동갱신하는 로직은 아직 없음(만료되면 재로그인 필요).
 class SessionController extends ChangeNotifier {
+  static const _keyAccessToken = 'session.accessToken';
+  static const _keyRefreshToken = 'session.refreshToken';
+  static const _keyRole = 'session.role';
+  static const _keyName = 'session.name';
+
   UserRole? _role;
+  String? _accessToken;
+  String? _refreshToken;
+  String _name = '';
+  bool _isLoading = false;
 
   UserRole? get role => _role;
   bool get isLoggedIn => _role != null;
+  String? get accessToken => _accessToken;
+  String get name => _name;
+  bool get isLoading => _isLoading;
 
-  void logIn(UserRole role) {
+  UserRole? _parseRole(String serverRole) => switch (serverRole) {
+        'doctor' => UserRole.doctor,
+        'nurse' => UserRole.nurse,
+        _ => null, // 병리사(pathologist) 등 이 앱에서 지원 안 하는 역할
+      };
+
+  /// 앱 시작 시 저장된 세션 복원.
+  Future<void> restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedRole = prefs.getString(_keyRole);
+    if (savedRole == null) return;
+
+    _role = _parseRole(savedRole);
+    _accessToken = prefs.getString(_keyAccessToken);
+    _refreshToken = prefs.getString(_keyRefreshToken);
+    _name = prefs.getString(_keyName) ?? '';
+    notifyListeners();
+  }
+
+  /// 실제 서버 로그인. 성공하면 null, 실패하면 사용자에게 보여줄 에러 메시지를 반환.
+  Future<String?> logInWithCredentials({
+    required String email,
+    required String password,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final result = await staffLogin(email: email, password: password);
+      final role = _parseRole(result.role);
+
+      if (role == null) {
+        return '이 앱은 의사/간호사 계정만 로그인할 수 있어요.';
+      }
+
+      _role = role;
+      _accessToken = result.access;
+      _refreshToken = result.refresh;
+      _name = result.name;
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyAccessToken, result.access);
+      await prefs.setString(_keyRefreshToken, result.refresh);
+      await prefs.setString(_keyRole, result.role);
+      await prefs.setString(_keyName, result.name);
+
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// 회원가입 후 임시로 바로 로그인 처리 (실제 staff/signup/ API 연동 전까지만 사용).
+  /// TODO: 회원가입 API 연동되면 이 메서드는 지우고 실제 로그인 응답으로 처리할 것.
+  void logInMock(UserRole role) {
     _role = role;
     notifyListeners();
   }
 
-  void logOut() {
+  Future<void> logOut() async {
     _role = null;
+    _accessToken = null;
+    _refreshToken = null;
+    _name = '';
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyAccessToken);
+    await prefs.remove(_keyRefreshToken);
+    await prefs.remove(_keyRole);
+    await prefs.remove(_keyName);
+
     notifyListeners();
   }
 }

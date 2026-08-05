@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-	import '../../mock/appointment_mock.dart';
+import '../../../../core/api/appointments_api.dart';
+import '../../../../core/api/auth_api.dart';
+import '../../../../core/auth/session_controller.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../models/appointment.dart';
 import '../doctor_off_day_screen.dart';
 import '../patient_detail_screen.dart';
 
-/// 탭 2: 진료스케줄 확인.
+/// 탭 2: 진료스케줄 확인. 실제 API(GET /api/appointments/mine/) 연동됨.
 /// - 캘린더뷰: 월간/주간 전환, 예약 있는 날짜 점표시
 /// - 날짜 선택시 해당일 시간순 예약목록(환자명, 시간, 상태)
 /// - 휴진일정 등록 버튼
-///
-/// TODO: 실제 연결 시 mockAppointments() 대신 API로 교체.
 class ScheduleTab extends StatefulWidget {
   const ScheduleTab({super.key});
 
@@ -26,17 +27,49 @@ class _ScheduleTabState extends State<ScheduleTab> {
   DateTime _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime _selectedDate = DateTime.now();
 
-  List<Appointment> get _allAppointments => mockAppointments();
+  List<Appointment> _appointments = [];
+  String? _errorMessage;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+
+    try {
+      final rawList = await fetchMyAppointmentsRaw(token);
+      if (!mounted) return;
+      setState(() {
+        _appointments = rawList.map(Appointment.fromJson).toList();
+        _isLoading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.message;
+      });
+    }
+  }
 
   bool _hasAppointment(DateTime day) {
-    return _allAppointments.any((a) =>
+    return _appointments.any((a) =>
         a.dateTime.year == day.year &&
         a.dateTime.month == day.month &&
         a.dateTime.day == day.day);
   }
 
   List<Appointment> get _selectedDayAppointments {
-    final list = _allAppointments
+    final list = _appointments
         .where((a) =>
             a.dateTime.year == _selectedDate.year &&
             a.dateTime.month == _selectedDate.month &&
@@ -68,6 +101,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
                   ),
                 ),
                 const SizedBox(width: 8),
+                IconButton(onPressed: _load, icon: const Icon(Icons.refresh, size: 20)),
                 TextButton.icon(
                   onPressed: () {
                     Navigator.of(context).push(
@@ -93,21 +127,39 @@ class _ScheduleTabState extends State<ScheduleTab> {
             onSelectDate: (d) => setState(() => _selectedDate = d),
           ),
           const Divider(height: 24),
-          Expanded(
-            child: _selectedDayAppointments.isEmpty
-                ? const Center(child: Text('이 날짜엔 예약이 없어요'))
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _selectedDayAppointments.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final a = _selectedDayAppointments[index];
-                      return _AppointmentTile(appointment: a);
-                    },
-                  ),
-          ),
+          Expanded(child: _buildList()),
         ],
       ),
+    );
+  }
+
+  Widget _buildList() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            const SizedBox(height: 8),
+            TextButton(onPressed: _load, child: const Text('다시 시도')),
+          ],
+        ),
+      );
+    }
+    if (_selectedDayAppointments.isEmpty) {
+      return const Center(child: Text('이 날짜엔 예약이 없어요'));
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: _selectedDayAppointments.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final a = _selectedDayAppointments[index];
+        return _AppointmentTile(appointment: a);
+      },
     );
   }
 }
@@ -179,13 +231,13 @@ class _MonthGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final firstDayOfMonth = DateTime(focusedMonth.year, focusedMonth.month, 1);
     final daysInMonth = DateTime(focusedMonth.year, focusedMonth.month + 1, 0).day;
-    final leadingBlanks = firstDayOfMonth.weekday % 7; // 일요일 시작 기준
+    final leadingBlanks = firstDayOfMonth.weekday % 7;
 
     final cells = <Widget>[];
     for (int i = 0; i < leadingBlanks; i++) {
       cells.add(const SizedBox());
     }
-for (int day = 1; day <= daysInMonth; day++) {
+    for (int day = 1; day <= daysInMonth; day++) {
       final date = DateTime(focusedMonth.year, focusedMonth.month, day);
       final isSelected = date.year == selectedDate.year &&
           date.month == selectedDate.month &&
@@ -201,6 +253,7 @@ for (int day = 1; day <= daysInMonth; day++) {
         onTap: () => onSelectDate(date),
       ));
     }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -333,7 +386,7 @@ class _WeekRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
-children: List.generate(7, (i) {
+        children: List.generate(7, (i) {
           final date = days[i];
           final isSelected = date.year == selectedDate.year &&
               date.month == selectedDate.month &&
@@ -374,9 +427,11 @@ class _AppointmentTile extends StatelessWidget {
         '${two(appointment.dateTime.hour)}:${two(appointment.dateTime.minute)}';
 
     final Color statusColor = switch (appointment.status) {
-      AppointmentStatus.scheduled => Colors.blue,
-      AppointmentStatus.visited => Colors.green,
+      AppointmentStatus.checkedIn => Colors.green,
+      AppointmentStatus.completed => Colors.green,
       AppointmentStatus.noShow => Colors.red,
+      AppointmentStatus.cancelled => Colors.grey,
+      _ => Colors.blue,
     };
 
     return Card(

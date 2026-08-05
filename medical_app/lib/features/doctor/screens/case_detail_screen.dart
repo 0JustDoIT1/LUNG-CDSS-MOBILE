@@ -1,19 +1,24 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../core/api/auth_api.dart';
+import '../../../core/api/cases_api.dart';
+import '../../../core/auth/session_controller.dart';
 import '../../../core/theme/app_theme.dart';
 import '../models/review_case.dart';
 import 'case_review_history_screen.dart';
 import 'widgets/case_review_actions.dart';
 
-/// AI 결과 상세뷰.
-///
-/// 상단 "이미지 / 소견" 탭으로 크게 나뉜다.
-/// - 이미지 탭: 히트맵/오버레이/원본 전환, 확대축소 버튼, 오버레이 강도, 주석/드로잉 컨트롤
-/// - 소견 탭: 확률 요약, 유전자확률, AI소견(MedGemma 초안)
-///
-/// TODO: 실제 이미지 API 붙으면 placeholder를 Image.network로 교체.
-/// TODO: 주석/드로잉은 컨트롤 UI만 있고, 실제 캔버스에 그리는 기능은 다음 단계에서.
-/// TODO: 승인/반려 버튼은 다음 단계에서 추가.
+/// 드로잉 획(Stroke) 정보 모델
+class DrawingPoint {
+  final Offset offset;
+  final Paint paint;
+
+  DrawingPoint({required this.offset, required this.paint});
+}
+
+/// AI 결과 상세뷰
 class CaseDetailScreen extends StatefulWidget {
   final ReviewCase reviewCase;
 
@@ -29,6 +34,18 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
   _MainTab _mainTab = _MainTab.image;
   late bool _isFavorite = widget.reviewCase.isFavorite;
 
+  Future<void> _toggleFavorite() async {
+    final token = context.read<SessionController>().accessToken;
+    setState(() => _isFavorite = !_isFavorite);
+    if (token == null) return;
+    try {
+      await toggleCaseFavorite(widget.reviewCase.id, token);
+    } on ApiException catch (_) {
+      if (!mounted) return;
+      setState(() => _isFavorite = !_isFavorite);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.reviewCase;
@@ -43,17 +60,18 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
               _isFavorite ? Icons.star : Icons.star_border,
               color: _isFavorite ? Colors.amber : null,
             ),
-            onPressed: () {
-              setState(() => _isFavorite = !_isFavorite);
+            onPressed: () async {
+              final wasFavorite = _isFavorite;
+              await _toggleFavorite();
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    _isFavorite ? '즐겨찾기에 추가했어요' : '즐겨찾기에서 제거했어요',
+                    !wasFavorite ? '즐겨찾기에 추가했어요' : '즐겨찾기에서 제거했어요',
                   ),
                   duration: const Duration(seconds: 1),
                 ),
               );
-              // TODO: CaseFavorite 토글 API 연결, 홈화면 즐겨찾기카드와 연동
             },
           ),
           IconButton(
@@ -116,7 +134,7 @@ class _MainTabToggle extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-        color: isSelected ? AppTheme.gradientEnd : Colors.grey.shade100,
+          color: isSelected ? AppTheme.gradientEnd : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(24),
         ),
         alignment: Alignment.center,
@@ -149,6 +167,10 @@ class _ImageTabViewState extends State<_ImageTabView> {
   bool _annotationOn = false;
   Color _selectedColor = Colors.red;
   double _strokeWidth = 4;
+  
+  // 드로잉에 필요한 선 좌표 포인트 저장 리스트 (null은 선 연결 끊김을 의미)
+  final List<DrawingPoint?> _drawingPoints = [];
+
   final TransformationController _transformController =
       TransformationController();
 
@@ -166,6 +188,12 @@ class _ImageTabViewState extends State<_ImageTabView> {
 
   void _resetZoom() {
     setState(() => _transformController.value = Matrix4.identity());
+  }
+
+  void _clearCanvas() {
+    setState(() {
+      _drawingPoints.clear();
+    });
   }
 
   Color get _placeholderColor => switch (_mode) {
@@ -196,30 +224,93 @@ class _ImageTabViewState extends State<_ImageTabView> {
                 child: SizedBox(
                   height: 280,
                   width: double.infinity,
-                  // 실제 슬라이드 이미지 붙기 전까지는 색상 placeholder만 확인.
                   child: InteractiveViewer(
+                    // 드로잉 모드일 때는 InteractiveViewer의 터치 이동(Pan)/확대(Scale)를 비활성화합니다.
+                    panEnabled: !_annotationOn,
+                    scaleEnabled: !_annotationOn,
                     transformationController: _transformController,
                     minScale: 1,
                     maxScale: 5,
-                    child: Container(
-                      color: _placeholderColor,
-                      alignment: Alignment.center,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                    child: SizedBox(
+                      height: 280,
+                      width: double.infinity,
+                      child: Stack(
+                        fit: StackFit.expand,
                         children: [
-                          const Icon(
-                            Icons.image_outlined,
-                            size: 48,
-                            color: Colors.black38,
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            '핀치줌·드래그로 이동',
-                            style: TextStyle(
-                              color: Colors.black45,
-                              fontSize: 12,
+                          // 1. 이미지 배경 레이어 (Placeholder)
+                          Container(
+                            color: _placeholderColor,
+                            alignment: Alignment.center,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.image_outlined,
+                                  size: 48,
+                                  color: Colors.black38,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _annotationOn
+                                      ? '✏️ 드로잉 모드 (손가락으로 그려보세요)'
+                                      : '🖐️ 핀치줌·드래그로 이동 (연필 클릭 시 드로잉)',
+                                  style: TextStyle(
+                                    color: _annotationOn
+                                        ? Colors.blue.shade900
+                                        : Colors.black54,
+                                    fontSize: 12,
+                                    fontWeight: _annotationOn
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
+
+                          // 2. 드로잉 캔버스 레이어
+                          CustomPaint(
+                            painter: _DrawingPainter(points: _drawingPoints),
+                          ),
+
+                          // 3. 터치 감지 전용 레이어 (드로잉 모드일 때만 맨 위에서 터치를 감지함)
+                          if (_annotationOn)
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque, // 투명 영역도 터치 강제 수신
+                              onPanStart: (details) {
+                                setState(() {
+                                  _drawingPoints.add(
+                                    DrawingPoint(
+                                      offset: details.localPosition,
+                                      paint: Paint()
+                                        ..color = _selectedColor
+                                        ..isAntiAlias = true
+                                        ..strokeWidth = _strokeWidth
+                                        ..strokeCap = StrokeCap.round,
+                                    ),
+                                  );
+                                });
+                              },
+                              onPanUpdate: (details) {
+                                setState(() {
+                                  _drawingPoints.add(
+                                    DrawingPoint(
+                                      offset: details.localPosition,
+                                      paint: Paint()
+                                        ..color = _selectedColor
+                                        ..isAntiAlias = true
+                                        ..strokeWidth = _strokeWidth
+                                        ..strokeCap = StrokeCap.round,
+                                    ),
+                                  );
+                                });
+                              },
+                              onPanEnd: (_) {
+                                setState(() {
+                                  _drawingPoints.add(null);
+                                });
+                              },
+                            ),
                         ],
                       ),
                     ),
@@ -324,7 +415,8 @@ class _ImageTabViewState extends State<_ImageTabView> {
     return IconButton.filled(
       onPressed: () => setState(() => _annotationOn = !_annotationOn),
       style: IconButton.styleFrom(
-        backgroundColor: _annotationOn ? AppTheme.gradientEnd : Colors.grey.shade200,
+        backgroundColor:
+            _annotationOn ? AppTheme.gradientEnd : Colors.grey.shade200,
       ),
       icon: Icon(
         Icons.edit,
@@ -335,9 +427,8 @@ class _ImageTabViewState extends State<_ImageTabView> {
 
   Widget _eraserButton() {
     return IconButton(
-      onPressed: () {
-        // TODO: 지우기 기능 (드로잉 캔버스 붙을 때 연결)
-      },
+      tooltip: '전체 지우기',
+      onPressed: _clearCanvas,
       icon: const Icon(Icons.auto_fix_normal_outlined),
     );
   }
@@ -359,6 +450,37 @@ class _ImageTabViewState extends State<_ImageTabView> {
   }
 }
 
+/// 캔버스에 포인트를 그려주는 CustomPainter
+class _DrawingPainter extends CustomPainter {
+  final List<DrawingPoint?> points;
+
+  _DrawingPainter({required this.points});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (int i = 0; i < points.length - 1; i++) {
+      if (points[i] != null && points[i + 1] != null) {
+        // 연속된 점 연결하여 선 그리기
+        canvas.drawLine(
+          points[i]!.offset,
+          points[i + 1]!.offset,
+          points[i]!.paint,
+        );
+      } else if (points[i] != null && points[i + 1] == null) {
+        // 단일 클릭(점) 처리 - drawCircle 이용 (PointMode 오류 방지)
+        canvas.drawCircle(
+          points[i]!.offset,
+          points[i]!.paint.strokeWidth / 2,
+          points[i]!.paint..style = PaintingStyle.fill,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
 class _OpinionTabView extends StatelessWidget {
   final ReviewCase reviewCase;
 
@@ -374,13 +496,6 @@ class _OpinionTabView extends StatelessWidget {
         const SizedBox(height: 16),
         _TypeProbabilityBar(reviewCase: c),
         const SizedBox(height: 24),
-        const Text('유전자변이 확률', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        _GenePredictionList(genePredictions: c.genePredictions),
-        const SizedBox(height: 24),
-        const Text('AI 소견 초안',
-            style: TextStyle(fontSize: 12, color: Colors.black54)),
-        const SizedBox(height: 8),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -388,7 +503,10 @@ class _OpinionTabView extends StatelessWidget {
             color: Colors.grey.shade100,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(c.aiOpinion),
+          child: Text(
+            '유전자변이 확률·AI 소견은 준비 중이에요.',
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
         ),
         const SizedBox(height: 16),
       ],
@@ -480,72 +598,6 @@ class _TypeProbabilityBar extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _GenePredictionList extends StatelessWidget {
-  final Map<String, double> genePredictions;
-
-  const _GenePredictionList({required this.genePredictions});
-
-  @override
-  Widget build(BuildContext context) {
-    if (genePredictions.isEmpty) {
-      return const Text('유전자 예측 데이터 없음');
-    }
-
-    final entries = genePredictions.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final topKey = entries.first.key;
-
-    return Column(
-      children: entries.map((entry) {
-        final percent = (entry.value * 100).round();
-        final isTop = entry.key == topKey;
-        final barColor = isTop ? Colors.blue.shade600 : Colors.grey.shade400;
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 60,
-                child: Text(
-                  entry.key,
-                  style: TextStyle(
-                    fontWeight: isTop ? FontWeight.bold : FontWeight.w500,
-                    color: isTop ? Colors.blue.shade700 : Colors.black87,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: entry.value,
-                    minHeight: 8,
-                    backgroundColor: Colors.grey.shade200,
-                    valueColor: AlwaysStoppedAnimation(barColor),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 40,
-                child: Text(
-                  '$percent%',
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontWeight: isTop ? FontWeight.bold : FontWeight.normal,
-                    color: isTop ? Colors.blue.shade700 : Colors.black87,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
     );
   }
 }

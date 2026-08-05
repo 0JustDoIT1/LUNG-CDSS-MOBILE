@@ -140,7 +140,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     // TODO: 회원가입 API 연결. 지금은 임시로 바로 로그인 처리.
     final session = context.read<SessionController>();
-    session.logIn(_role!);
+    session.logInMock(_role!);
   }
 
   @override

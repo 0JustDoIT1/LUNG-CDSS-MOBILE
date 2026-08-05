@@ -4,14 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/auth/session_controller.dart';
-import '../../../core/constants/user_role.dart';
 import '../../../core/theme/app_theme.dart';
 import 'signup_screen.dart';
 
-/// 로그인 화면.
-///
-/// TODO;의사는 면허번호 API 검증(건강보험심사평가원 등) 연동 필요.
-/// 지금은 실제 인증 전이라, 역할 선택 카드로 임시 로그인 처리한다.
+/// 로그인 화면. 실제 서버(POST /api/auth/staff/login/) 연동됨.
+/// 역할(의사/간호사)은 서버 응답이 알려주므로, 여기서 따로 선택하지 않는다.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -20,11 +17,41 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  UserRole? _selectedRole;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() => _errorMessage = null);
+
+    if (_emailController.text.trim().isEmpty || _passwordController.text.isEmpty) {
+      setState(() => _errorMessage = '이메일과 비밀번호를 입력해주세요');
+      return;
+    }
+
+    final session = context.read<SessionController>();
+    final error = await session.logInWithCredentials(
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+    );
+
+    if (error != null && mounted) {
+      setState(() => _errorMessage = error);
+    }
+    // 성공 시엔 SessionController가 notifyListeners() → go_router의 redirect가
+    // 자동으로 /doctor 또는 /nurse로 이동시켜줌 (여기서 직접 navigate 안 해도 됨).
+  }
 
   @override
   Widget build(BuildContext context) {
-    final session = context.read<SessionController>();
+    final isLoading = context.watch<SessionController>().isLoading;
 
     return Scaffold(
       body: Stack(
@@ -72,19 +99,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 32),
                     _LoginCard(
-                      selectedRole: _selectedRole,
-                      onSelectRole: (role) => setState(() {
-                        _selectedRole = _selectedRole == role ? null : role;
-                      }),
-                      onSubmit: () {
-                        if (_selectedRole == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('의사 또는 간호사를 선택해주세요')),
-                          );
-                          return;
-                        }
-                        session.logIn(_selectedRole!);
-                      },
+                      emailController: _emailController,
+                      passwordController: _passwordController,
+                      errorMessage: _errorMessage,
+                      isLoading: isLoading,
+                      onSubmit: _submit,
                     ),
                   ],
                 ),
@@ -97,38 +116,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-/// 배경에 은은하게 깔리는 흐린 그라데이션 원.
-class _BlurBlob extends StatelessWidget {
-  final Color color;
-  final double size;
-
-  const _BlurBlob({required this.color, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return ImageFiltered(
-      imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color.withValues(alpha: 0.35),
-        ),
-      ),
-    );
-  }
-}
-
-/// 로그인 유형(의사/간호사) 선택 + 로그인 버튼을 담은 카드.
 class _LoginCard extends StatelessWidget {
-  final UserRole? selectedRole;
-  final ValueChanged<UserRole> onSelectRole;
+  final TextEditingController emailController;
+  final TextEditingController passwordController;
+  final String? errorMessage;
+  final bool isLoading;
   final VoidCallback onSubmit;
 
   const _LoginCard({
-    required this.selectedRole,
-    required this.onSelectRole,
+    required this.emailController,
+    required this.passwordController,
+    required this.errorMessage,
+    required this.isLoading,
     required this.onSubmit,
   });
 
@@ -153,60 +152,22 @@ class _LoginCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const Text(
-            '로그인 유형 선택',
-            textAlign: TextAlign.center,
+            '로그인',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _RoleTile(
-                  label: '의사',
-                  icon: Icons.medical_services_outlined,
-                  isSelected: selectedRole == UserRole.doctor,
-                  onTap: () => onSelectRole(UserRole.doctor),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _RoleTile(
-                  label: '간호사',
-                  icon: Icons.favorite_outline,
-                  isSelected: selectedRole == UserRole.nurse,
-                  onTap: () => onSelectRole(UserRole.nurse),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              '아이디',
+              '이메일',
               style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
             ),
           ),
           const SizedBox(height: 6),
           TextField(
-            decoration: InputDecoration(
-              hintText: '아이디를 입력하세요',
-              filled: true,
-              fillColor: Colors.grey.shade50,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppTheme.seed, width: 1.5),
-              ),
-            ),
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: _fieldDecoration('name@hospital.com'),
           ),
           const SizedBox(height: 14),
           Align(
@@ -218,26 +179,26 @@ class _LoginCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           TextField(
+            controller: passwordController,
             obscureText: true,
-            decoration: InputDecoration(
-              hintText: '비밀번호를 입력하세요',
-              filled: true,
-              fillColor: Colors.grey.shade50,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: Colors.grey.shade200),
+            onSubmitted: (_) => onSubmit(),
+            decoration: _fieldDecoration('비밀번호를 입력하세요'),
+          ),
+          if (errorMessage != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppTheme.seed, width: 1.5),
+              child: Text(
+                errorMessage!,
+                style: TextStyle(color: Colors.red.shade700, fontSize: 13),
               ),
             ),
-          ),
+          ],
           const SizedBox(height: 20),
           Container(
             width: double.infinity,
@@ -259,8 +220,14 @@ class _LoginCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: onSubmit,
-              child: const Text('로그인'),
+              onPressed: isLoading ? null : onSubmit,
+              child: isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('로그인'),
             ),
           ),
           const SizedBox(height: 16),
@@ -293,72 +260,35 @@ class _LoginCard extends StatelessWidget {
       ),
     );
   }
+
+  InputDecoration _fieldDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+    );
+  }
 }
 
-class _RoleTile extends StatefulWidget {
-  final String label;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
+/// 배경에 은은하게 깔리는 흐린 그라데이션 원.
+class _BlurBlob extends StatelessWidget {
+  final Color color;
+  final double size;
 
-  const _RoleTile({
-    required this.label,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  State<_RoleTile> createState() => _RoleTileState();
-}
-
-class _RoleTileState extends State<_RoleTile> {
-  bool _isPressed = false;
+  const _BlurBlob({required this.color, required this.size});
 
   @override
   Widget build(BuildContext context) {
-    final active = widget.isSelected;
-
-    final Color bgColor = active
-        ? (_isPressed ? AppTheme.seed.withValues(alpha: 0.16) : AppTheme.seed.withValues(alpha: 0.1))
-        : (_isPressed ? Colors.grey.shade100 : Colors.grey.shade50);
-
-    return GestureDetector(
-      onTap: widget.onTap,
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
+      child: Container(
+        width: size,
+        height: size,
         decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: active ? AppTheme.seed : Colors.grey.shade200,
-            width: active ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              widget.icon,
-              size: 24,
-              color: active ? AppTheme.seed : Colors.grey.shade500,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              widget.label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-                color: active ? AppTheme.seed : Colors.grey.shade700,
-              ),
-            ),
-            const Spacer(),
-            if (active) Icon(Icons.check_circle, size: 20, color: AppTheme.seed),
-          ],
+          shape: BoxShape.circle,
+          color: color.withValues(alpha: 0.35),
         ),
       ),
     );

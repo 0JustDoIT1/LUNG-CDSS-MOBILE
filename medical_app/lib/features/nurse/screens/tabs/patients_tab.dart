@@ -1,20 +1,62 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../../core/api/auth_api.dart';
+import '../../../../core/api/symptoms_api.dart';
+import '../../../../core/auth/session_controller.dart';
 import '../../mock/patient_overview_mock.dart';
 import '../../models/patient_overview.dart';
 import '../nurse_patient_detail_screen.dart';
+import '../symptom_checks_screen.dart';
 
 /// 탭 2: 담당환자 목록.
-/// 디자인 시안 반영 — 상단 소속과/인원수 + 환자별 카드(오늘 복약체크 상태, 확인필요 뱃지).
-/// TODO: 실제 연결 시 mock 데이터 대신 API로 교체.
-class NursePatientsTab extends StatelessWidget {
+/// 환자 명단 자체는 아직 mock(담당환자 목록 API 확인 전)이지만,
+/// "확인필요" 표시는 실제 증상위험도 API(GET /api/symptoms/checks/nurse-visible/) 기반.
+class NursePatientsTab extends StatefulWidget {
   const NursePatientsTab({super.key});
 
+  @override
+  State<NursePatientsTab> createState() => _NursePatientsTabState();
+}
+
+class _NursePatientsTabState extends State<NursePatientsTab> {
   static const _patientNames = ['홍길동', '이순신', '최민수'];
+
+  List<SymptomCheck> _riskChecks = [];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRisk());
+  }
+
+  Future<void> _loadRisk() async {
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+    try {
+      final checks = await fetchNurseVisibleSymptomChecks(token);
+      if (!mounted) return;
+      setState(() => _riskChecks = checks);
+    } on ApiException catch (_) {
+      // 위험도 정보 로드 실패는 조용히 무시 (목록 자체는 계속 보여줘야 하니까)
+    }
+  }
+
+  bool _needsAttention(String name) =>
+      _riskChecks.any((c) => c.patientName == name && !c.nurseReviewed);
 
   @override
   Widget build(BuildContext context) {
-    final patients = _patientNames.map(mockNursePatientOverview).toList();
+    final patients = _patientNames.map((name) {
+      final overview = mockNursePatientOverview(name);
+      return NursePatientOverview(
+        name: overview.name,
+        needsAttention: _needsAttention(name),
+        todayDoses: overview.todayDoses,
+      );
+    }).toList();
+
+    final unreadRiskCount = _riskChecks.where((c) => !c.nurseReviewed).length;
 
     return SafeArea(
       child: ListView(
@@ -29,7 +71,39 @@ class NursePatientsTab extends StatelessWidget {
             '호흡기내과 · ${patients.length}명',
             style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          if (unreadRiskCount > 0)
+            GestureDetector(
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SymptomChecksScreen()),
+                );
+                _loadRisk();
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.priority_high, color: Colors.red.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '증상 위험 신호 $unreadRiskCount건 — 확인이 필요해요',
+                        style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Colors.red.shade700, size: 18),
+                  ],
+                ),
+              ),
+            ),
           ...patients.map((p) => _PatientCard(patient: p)),
         ],
       ),
