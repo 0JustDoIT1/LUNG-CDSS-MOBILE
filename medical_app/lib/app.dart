@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'core/auth/session_controller.dart';
 import 'core/notifications/foreground_message_banner.dart';
 import 'core/router/app_router.dart';
+import 'core/security/security_settings_controller.dart';
 import 'core/settings/app_settings_controller.dart';
 import 'core/theme/app_theme.dart';
 import 'main.dart';
@@ -19,6 +20,7 @@ class MedicalApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => SessionController()..restore()),
         ChangeNotifierProvider(create: (_) => AppSettingsController()..load()),
+        ChangeNotifierProvider(create: (_) => SecuritySettingsController()),
       ],
       child: const _MedicalAppView(),
     );
@@ -38,7 +40,10 @@ class _MedicalAppViewState extends State<_MedicalAppView> {
   @override
   void initState() {
     super.initState();
-    _router = buildRouter(context.read<SessionController>());
+    _router = buildRouter(
+      context.read<SessionController>(),
+      context.read<SecuritySettingsController>(),
+    );
   }
 
   @override

@@ -109,7 +109,11 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
             tooltip: '알림',
             onPressed: () async {
               await Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const NotificationScreen()),
+                MaterialPageRoute(
+                  builder: (_) => NotificationScreen(
+                    onNavigateToTab: (i) => setState(() => _tabIndex = i),
+                  ),
+                ),
               );
               _refreshBadges();
             },

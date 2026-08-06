@@ -25,6 +25,8 @@ class _NurseChatTabState extends State<NurseChatTab> {
   String? _errorMessage;
   bool _isLoading = true;
   Timer? _pollTimer;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -32,12 +34,16 @@ class _NurseChatTabState extends State<NurseChatTab> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
     _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
     fcmService.incomingMessage.addListener(_silentRefresh);
+    _searchController.addListener(() {
+      setState(() => _searchQuery = _searchController.text.trim());
+    });
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
     fcmService.incomingMessage.removeListener(_silentRefresh);
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -117,19 +123,56 @@ class _NurseChatTabState extends State<NurseChatTab> {
       );
     }
 
-    final threads = _threads ?? [];
-    if (threads.isEmpty) {
+    final allThreads = _threads ?? [];
+    final threads = _searchQuery.isEmpty
+        ? allThreads
+        : allThreads
+            .where((t) => t.otherParticipantName.toLowerCase().contains(_searchQuery.toLowerCase()))
+            .toList();
+
+    if (allThreads.isEmpty) {
       return const Center(child: Text('대화 중인 채팅이 없어요'));
     }
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: threads.length,
-        separatorBuilder: (_, _) => const Divider(height: 1, indent: 76),
-        itemBuilder: (context, index) => _ThreadTile(thread: threads[index]),
-      ),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: '상대 이름으로 검색',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: _searchController.clear,
+                    ),
+              filled: true,
+              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: threads.isEmpty
+              ? const Center(child: Text('검색 결과가 없어요'))
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: threads.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1, indent: 76),
+                    itemBuilder: (context, index) => _ThreadTile(thread: threads[index]),
+                  ),
+                ),
+        ),
+      ],
     );
   }
 }

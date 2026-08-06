@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/api/auth_api.dart';
 import '../../../../core/api/cases_api.dart';
 import '../../../../core/auth/session_controller.dart';
+import '../../../../main.dart';
 import '../../models/review_case.dart';
 import '../case_detail_screen.dart';
 
@@ -12,6 +15,7 @@ import '../case_detail_screen.dart';
 /// - 정렬: confidence 낮은순(기본) ↔ 접수순 토글
 /// - 즐겨찾기 필터: 즐겨찾기한 케이스만 보기
 /// - confidence 70% 미만이면 빨간 "긴급" 뱃지
+/// - 10초 폴링 + 포그라운드 푸시 수신 시 즉시 새로고침으로, 새로 들어온 케이스가 바로 반영됨.
 class CasesTab extends StatefulWidget {
   const CasesTab({super.key});
 
@@ -28,11 +32,21 @@ class _CasesTabState extends State<CasesTab> {
   List<ReviewCase>? _cases;
   String? _errorMessage;
   bool _isLoading = true;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
+    fcmService.incomingMessage.addListener(_silentRefresh);
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    fcmService.incomingMessage.removeListener(_silentRefresh);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -63,6 +77,19 @@ class _CasesTabState extends State<CasesTab> {
         _isLoading = false;
         _errorMessage = e.message;
       });
+    }
+  }
+
+  /// 폴링/푸시 수신 시 배경에서 조용히 새로고침 — 실패해도 기존 목록 유지, 로딩/에러 화면 건드리지 않음.
+  Future<void> _silentRefresh() async {
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+    try {
+      final cases = await fetchCases(token);
+      if (!mounted) return;
+      setState(() => _cases = cases);
+    } on ApiException catch (_) {
+      // 조용히 무시
     }
   }
 
@@ -115,7 +142,7 @@ class _CasesTabState extends State<CasesTab> {
                           ),
                           const SizedBox(width: 2),
                           Text(
-                            _sortMode == _SortMode.confidence ? '정렬: 신뢰도순' : '정렬: 접수순',
+                            _sortMode == _SortMode.confidence ? '신뢰도순' : '접수순',
                             style: TextStyle(
                               fontSize: 13,
                               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -185,26 +212,38 @@ class _CasesTabState extends State<CasesTab> {
     });
 
     if (cases.isEmpty) {
-      return const Center(child: Text('표시할 케이스가 없어요'));
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 120),
+            Center(child: Text('표시할 케이스가 없어요')),
+          ],
+        ),
+      );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: cases.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final c = cases[index];
-        return _CaseCard(
-          reviewCase: c,
-          onToggleFavorite: _toggleFavorite,
-          onTap: () async {
-            final needsRefresh = await Navigator.of(context).push<bool>(
-              MaterialPageRoute(builder: (_) => CaseDetailScreen(reviewCase: c)),
-            );
-            if (needsRefresh == true) _load();
-          },
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: cases.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final c = cases[index];
+          return _CaseCard(
+            reviewCase: c,
+            onToggleFavorite: _toggleFavorite,
+            onTap: () async {
+              final needsRefresh = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(builder: (_) => CaseDetailScreen(reviewCase: c)),
+              );
+              if (needsRefresh == true) _load();
+            },
+          );
+        },
+      ),
     );
   }
 }

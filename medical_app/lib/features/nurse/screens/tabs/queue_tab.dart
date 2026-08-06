@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,10 +7,12 @@ import '../../../../core/api/appointments_api.dart';
 import '../../../../core/api/auth_api.dart';
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../main.dart';
 import '../../models/reservation.dart';
 
 /// 탭 1: 예약요청 큐 관리 + 진료관리(방문/미방문 처리).
 /// 실제 API(GET .../queue/, .../today-visits/, POST .../process/ 등) 연동됨.
+/// 두 하위 탭 모두 10초 폴링 + 포그라운드 푸시 수신 시 즉시 새로고침으로 자동 반영됨.
 class QueueTab extends StatefulWidget {
   const QueueTab({super.key});
 
@@ -71,11 +75,21 @@ class _RequestQueueViewState extends State<_RequestQueueView> {
   List<Appointment>? _appointments;
   String? _errorMessage;
   bool _isLoading = true;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
+    fcmService.incomingMessage.addListener(_silentRefresh);
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    fcmService.incomingMessage.removeListener(_silentRefresh);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -99,6 +113,19 @@ class _RequestQueueViewState extends State<_RequestQueueView> {
         _isLoading = false;
         _errorMessage = e.message;
       });
+    }
+  }
+
+  /// 폴링/푸시 수신 시 배경에서 조용히 새로고침 — 실패해도 기존 목록 유지, 로딩/에러 화면 안 건드림.
+  Future<void> _silentRefresh() async {
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+    try {
+      final list = await fetchAppointmentQueue(token);
+      if (!mounted) return;
+      setState(() => _appointments = list);
+    } on ApiException catch (_) {
+      // 조용히 무시
     }
   }
 
@@ -255,11 +282,21 @@ class _TodayVisitsViewState extends State<_TodayVisitsView> {
   List<Appointment>? _appointments;
   String? _errorMessage;
   bool _isLoading = true;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
+    fcmService.incomingMessage.addListener(_silentRefresh);
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    fcmService.incomingMessage.removeListener(_silentRefresh);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -283,6 +320,19 @@ class _TodayVisitsViewState extends State<_TodayVisitsView> {
         _isLoading = false;
         _errorMessage = e.message;
       });
+    }
+  }
+
+  /// 폴링/푸시 수신 시 배경에서 조용히 새로고침 — 실패해도 기존 목록 유지, 로딩/에러 화면 안 건드림.
+  Future<void> _silentRefresh() async {
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+    try {
+      final list = await fetchTodayVisits(token);
+      if (!mounted) return;
+      setState(() => _appointments = list);
+    } on ApiException catch (_) {
+      // 조용히 무시
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +8,7 @@ import '../../../../core/api/auth_api.dart';
 import '../../../../core/api/cases_api.dart';
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../main.dart';
 import '../../models/appointment.dart';
 import '../../models/review_case.dart';
 import '../case_detail_screen.dart';
@@ -14,6 +17,8 @@ import '../patient_detail_screen.dart';
 /// 탭 3(중앙): 홈 대시보드. 실제 API(cases, appointments) 연동됨.
 /// 케이스 조회 실패 시에만 전체 에러 화면을 보여주고, 예약 조회는 독립적으로 실패를 허용해
 /// (예: /api/appointments/mine/ 403) 나머지 섹션은 정상 표시되도록 처리.
+/// 10초 폴링 + 포그라운드 푸시 수신 시 즉시 새로고침으로, 다른 탭에서 즐겨찾기/케이스 상태를
+/// 바꾸고 돌아와도 자동으로 반영됨.
 class DoctorHomeTab extends StatefulWidget {
   final ValueChanged<int> onNavigateToTab;
 
@@ -29,11 +34,43 @@ class _DoctorHomeTabState extends State<DoctorHomeTab> {
   bool _isLoading = true;
   String? _casesErrorMessage;
   String? _appointmentsErrorMessage;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
+    fcmService.incomingMessage.addListener(_silentRefresh);
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    fcmService.incomingMessage.removeListener(_silentRefresh);
+    super.dispose();
+  }
+
+  /// 폴링/푸시 수신 시 배경에서 조용히 새로고침 — 실패해도 기존 상태 유지, 로딩/에러 화면 안 건드림.
+  Future<void> _silentRefresh() async {
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+
+    try {
+      final cases = await fetchCases(token);
+      if (!mounted) return;
+      setState(() => _cases = cases);
+    } on ApiException catch (_) {
+      // 조용히 무시
+    }
+
+    try {
+      final rawAppointments = await fetchMyAppointmentsRaw(token);
+      if (!mounted) return;
+      setState(() => _appointments = rawAppointments.map(Appointment.fromJson).toList());
+    } on ApiException catch (_) {
+      // 조용히 무시
+    }
   }
 
   Future<void> _load() async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/auth/session_controller.dart';
+import '../../../../core/security/security_settings_controller.dart';
 import '../doctor_app_settings_screen.dart'; // 올바른 경로로 수정
 import '../doctor_profile_screen.dart';
 
@@ -135,6 +136,7 @@ class SettingsTab extends StatelessWidget {
               onPressed: () {
                 Navigator.pop(dialogContext);
                 context.read<SessionController>().logOut();
+                context.read<SecuritySettingsController>().resetUnlock();
               },
               child: const Text('로그아웃', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
             ),

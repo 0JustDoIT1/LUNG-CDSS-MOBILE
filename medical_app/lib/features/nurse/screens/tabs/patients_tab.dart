@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,6 +7,7 @@ import '../../../../core/api/auth_api.dart';
 import '../../../../core/api/medications_api.dart';
 import '../../../../core/api/symptoms_api.dart';
 import '../../../../core/auth/session_controller.dart';
+import '../../../../main.dart';
 import '../../models/staff_patient.dart';
 import '../nurse_patient_detail_screen.dart';
 import '../symptom_checks_screen.dart';
@@ -13,6 +16,7 @@ import '../symptom_checks_screen.dart';
 /// 환자 명단은 실제 API(GET /api/auth/staff/patients/) 기반.
 /// "확인필요" 표시는 증상위험도 API(GET /api/symptoms/checks/nurse-visible/) 기반.
 /// 복약현황(오늘 복약 X/N)은 카드별로 GET /api/medications/logs/today/?patient_id= 조회.
+/// 목록은 10초 폴링 + 포그라운드 푸시 수신 시 즉시 새로고침으로 자동 반영됨.
 class NursePatientsTab extends StatefulWidget {
   const NursePatientsTab({super.key});
 
@@ -25,11 +29,43 @@ class _NursePatientsTabState extends State<NursePatientsTab> {
   List<SymptomCheck> _riskChecks = [];
   bool _isLoading = true;
   String? _errorMessage;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
+    fcmService.incomingMessage.addListener(_silentRefresh);
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    fcmService.incomingMessage.removeListener(_silentRefresh);
+    super.dispose();
+  }
+
+  /// 폴링/푸시 수신 시 배경에서 조용히 새로고침 — 실패해도 기존 목록 유지, 로딩/에러 화면 안 건드림.
+  Future<void> _silentRefresh() async {
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+
+    try {
+      final patients = await fetchStaffPatients(token);
+      if (!mounted) return;
+      setState(() => _patients = patients);
+    } on ApiException catch (_) {
+      // 조용히 무시
+    }
+
+    try {
+      final checks = await fetchNurseVisibleSymptomChecks(token);
+      if (!mounted) return;
+      setState(() => _riskChecks = checks);
+    } on ApiException catch (_) {
+      // 조용히 무시
+    }
   }
 
   Future<void> _load() async {

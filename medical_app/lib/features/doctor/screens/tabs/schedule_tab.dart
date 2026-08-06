@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,6 +7,7 @@ import '../../../../core/api/appointments_api.dart';
 import '../../../../core/api/auth_api.dart';
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../main.dart';
 import '../../models/appointment.dart';
 import '../doctor_off_day_screen.dart';
 import '../patient_detail_screen.dart';
@@ -13,6 +16,7 @@ import '../patient_detail_screen.dart';
 /// - 캘린더뷰: 월간/주간 전환, 예약 있는 날짜 점표시
 /// - 날짜 선택시 해당일 시간순 예약목록(환자명, 시간, 상태)
 /// - 휴진일정 등록 버튼
+/// - 10초 폴링 + 포그라운드 푸시 수신 시 즉시 새로고침으로 자동 반영
 class ScheduleTab extends StatefulWidget {
   const ScheduleTab({super.key});
 
@@ -37,18 +41,56 @@ const _weekdayCodes = {
 class _ScheduleTabState extends State<ScheduleTab> {
   _CalendarMode _mode = _CalendarMode.month;
   DateTime _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month);
-  DateTime _selectedDate = DateTime.now();
+  // 주간뷰가 어느 주를 보여줄지 기준이 되는 날짜. 선택 해제해도 이 값은 유지됨.
+  DateTime _anchorDate = DateTime.now();
+  DateTime? _selectedDate = DateTime.now();
 
   List<Appointment> _appointments = [];
   List<WeeklyScheduleSlot> _weeklySchedule = [];
   List<DoctorOffDay> _offDays = [];
   String? _errorMessage;
   bool _isLoading = true;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
+    fcmService.incomingMessage.addListener(_silentRefresh);
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    fcmService.incomingMessage.removeListener(_silentRefresh);
+    super.dispose();
+  }
+
+  /// 폴링/푸시 수신 시 배경에서 조용히 새로고침 — 실패해도 기존 상태 유지, 로딩/에러 화면 안 건드림.
+  Future<void> _silentRefresh() async {
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+
+    try {
+      final rawList = await fetchMyAppointmentsRaw(token);
+      if (!mounted) return;
+      setState(() => _appointments = rawList.map(Appointment.fromJson).toList());
+    } on ApiException catch (_) {
+      // 조용히 무시
+    }
+
+    try {
+      final weekly = await fetchDoctorWeeklySchedule(token);
+      final offDays = await fetchDoctorOffDays(token);
+      if (!mounted) return;
+      setState(() {
+        _weeklySchedule = weekly;
+        _offDays = offDays;
+      });
+    } on ApiException catch (_) {
+      // 조용히 무시
+    }
   }
 
   Future<void> _load() async {
@@ -117,12 +159,17 @@ class _ScheduleTabState extends State<ScheduleTab> {
   }
 
   String? get _selectedDayOffLabel {
-    final details = _offDetailsFor(_selectedDate);
+    final selected = _selectedDate;
+    if (selected == null) return null;
+    final details = _offDetailsFor(selected);
     if (details.amOff && details.pmOff) return '종일 휴진';
     if (details.amOff) return '오전 휴진';
     if (details.pmOff) return '오후 휴진';
     return null;
   }
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   bool _hasAppointment(DateTime day) {
     return _appointments.any((a) =>
@@ -132,12 +179,9 @@ class _ScheduleTabState extends State<ScheduleTab> {
   }
 
   List<Appointment> get _selectedDayAppointments {
-    final list = _appointments
-        .where((a) =>
-            a.dateTime.year == _selectedDate.year &&
-            a.dateTime.month == _selectedDate.month &&
-            a.dateTime.day == _selectedDate.day)
-        .toList();
+    final selected = _selectedDate;
+    if (selected == null) return const [];
+    final list = _appointments.where((a) => _isSameDay(a.dateTime, selected)).toList();
     list.sort((a, b) => a.dateTime.compareTo(b.dateTime));
     return list;
   }
@@ -145,6 +189,18 @@ class _ScheduleTabState extends State<ScheduleTab> {
   void _changeMonth(int delta) {
     setState(() {
       _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + delta);
+    });
+  }
+
+  /// 날짜를 탭했을 때 — 이미 선택된 날짜를 다시 탭하면 선택 해제.
+  void _onSelectDate(DateTime date) {
+    setState(() {
+      _anchorDate = date; // 주간뷰는 선택 해제해도 이 날짜가 속한 주를 계속 보여줌
+      if (_selectedDate != null && _isSameDay(_selectedDate!, date)) {
+        _selectedDate = null;
+      } else {
+        _selectedDate = date;
+      }
     });
   }
 
@@ -185,12 +241,13 @@ class _ScheduleTabState extends State<ScheduleTab> {
             hasAppointment: _hasAppointment,
             offStatusFor: _offStatusFor,
             onMonthChange: _changeMonth,
-            onSelectDate: (d) => setState(() => _selectedDate = d),
+            onSelectDate: _onSelectDate,
           ) else _WeekRow(
+            anchorDate: _anchorDate,
             selectedDate: _selectedDate,
             hasAppointment: _hasAppointment,
             offStatusFor: _offStatusFor,
-            onSelectDate: (d) => setState(() => _selectedDate = d),
+            onSelectDate: _onSelectDate,
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -251,6 +308,9 @@ class _ScheduleTabState extends State<ScheduleTab> {
           ],
         ),
       );
+    }
+    if (_selectedDate == null) {
+      return const Center(child: Text('날짜를 선택해주세요'));
     }
     if (_selectedDayAppointments.isEmpty) {
       return const Center(child: Text('이 날짜엔 예약이 없어요'));
@@ -317,7 +377,7 @@ class _CalendarModeToggle extends StatelessWidget {
 
 class _MonthGrid extends StatelessWidget {
   final DateTime focusedMonth;
-  final DateTime selectedDate;
+  final DateTime? selectedDate;
   final bool Function(DateTime) hasAppointment;
   final _OffStatus Function(DateTime) offStatusFor;
   final void Function(int delta) onMonthChange;
@@ -344,15 +404,19 @@ class _MonthGrid extends StatelessWidget {
     }
     for (int day = 1; day <= daysInMonth; day++) {
       final date = DateTime(focusedMonth.year, focusedMonth.month, day);
-      final isSelected = date.year == selectedDate.year &&
-          date.month == selectedDate.month &&
-          date.day == selectedDate.day;
+      final selected = selectedDate;
+      final isSelected = selected != null &&
+          date.year == selected.year &&
+          date.month == selected.month &&
+          date.day == selected.day;
       final today = DateTime.now();
+      final isToday = date.year == today.year && date.month == today.month && date.day == today.day;
       final isPast = date.isBefore(DateTime(today.year, today.month, today.day));
       final isSunday = date.weekday == DateTime.sunday;
       cells.add(_DayCell(
         day: day,
         isSelected: isSelected,
+        isToday: isToday,
         hasDot: hasAppointment(date),
         offStatus: offStatusFor(date),
         isPast: isPast || isSunday,
@@ -420,6 +484,7 @@ class _WeekdayLabel extends StatelessWidget {
 class _DayCell extends StatelessWidget {
   final int day;
   final bool isSelected;
+  final bool isToday;
   final bool hasDot;
   final _OffStatus offStatus;
   final bool isPast;
@@ -428,6 +493,7 @@ class _DayCell extends StatelessWidget {
   const _DayCell({
     required this.day,
     required this.isSelected,
+    required this.isToday,
     required this.hasDot,
     required this.offStatus,
     required this.isPast,
@@ -454,6 +520,8 @@ class _DayCell extends StatelessWidget {
       textColor = colorScheme.onSurface.withValues(alpha: 0.38);
     } else if (isSelected) {
       textColor = colorScheme.surface;
+    } else if (isToday) {
+      textColor = AppTheme.gradientEnd;
     } else if (isFullOff) {
       textColor = Colors.orange.shade800;
     } else {
@@ -467,6 +535,7 @@ class _DayCell extends StatelessWidget {
         decoration: BoxDecoration(
           color: cellColor,
           shape: BoxShape.circle,
+          border: (isToday && !isSelected) ? Border.all(color: AppTheme.gradientEnd, width: 1.5) : null,
         ),
         alignment: Alignment.center,
         child: Column(
@@ -476,7 +545,7 @@ class _DayCell extends StatelessWidget {
               '$day',
               style: TextStyle(
                 color: textColor,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: (isSelected || isToday) ? FontWeight.bold : FontWeight.normal,
               ),
             ),
             if (hasDot || isHalfOff)
@@ -535,12 +604,14 @@ class _LegendDot extends StatelessWidget {
 }
 
 class _WeekRow extends StatelessWidget {
-  final DateTime selectedDate;
+  final DateTime anchorDate;
+  final DateTime? selectedDate;
   final bool Function(DateTime) hasAppointment;
   final _OffStatus Function(DateTime) offStatusFor;
   final void Function(DateTime) onSelectDate;
 
   const _WeekRow({
+    required this.anchorDate,
     required this.selectedDate,
     required this.hasAppointment,
     required this.offStatusFor,
@@ -550,7 +621,7 @@ class _WeekRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final startOfWeek =
-        selectedDate.subtract(Duration(days: selectedDate.weekday % 7));
+        anchorDate.subtract(Duration(days: anchorDate.weekday % 7));
     final days = List.generate(7, (i) => startOfWeek.add(Duration(days: i)));
     const labels = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -559,10 +630,13 @@ class _WeekRow extends StatelessWidget {
       child: Row(
         children: List.generate(7, (i) {
           final date = days[i];
-          final isSelected = date.year == selectedDate.year &&
-              date.month == selectedDate.month &&
-              date.day == selectedDate.day;
+          final selected = selectedDate;
+          final isSelected = selected != null &&
+              date.year == selected.year &&
+              date.month == selected.month &&
+              date.day == selected.day;
           final today = DateTime.now();
+          final isToday = date.year == today.year && date.month == today.month && date.day == today.day;
           final isPast = date.isBefore(DateTime(today.year, today.month, today.day));
           final isSunday = date.weekday == DateTime.sunday;
           return Expanded(
@@ -576,6 +650,7 @@ class _WeekRow extends StatelessWidget {
                 _DayCell(
                   day: date.day,
                   isSelected: isSelected,
+                  isToday: isToday,
                   hasDot: hasAppointment(date),
                   offStatus: offStatusFor(date),
                   isPast: isPast || isSunday,

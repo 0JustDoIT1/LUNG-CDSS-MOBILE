@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/auth/session_controller.dart';
+import '../../../../core/security/security_settings_controller.dart';
 import '../nurse_app_settings_screen.dart';
 
 /// 탭 5: 메뉴 (설정 / 로그아웃 진입점).
@@ -122,6 +123,7 @@ class NurseSettingsTab extends StatelessWidget {
               onPressed: () {
                 Navigator.pop(dialogContext);
                 context.read<SessionController>().logOut();
+                context.read<SecuritySettingsController>().resetUnlock();
               },
               child: const Text('로그아웃', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
             ),

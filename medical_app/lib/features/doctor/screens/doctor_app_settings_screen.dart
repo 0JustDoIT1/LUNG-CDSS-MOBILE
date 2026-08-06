@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/auth/session_controller.dart';
+import '../../../core/security/security_settings_controller.dart';
 import '../../../core/settings/app_settings_controller.dart';
 
 /// 앱 설정 — 화면표시(테마/화면항상켜짐/글자크기) + 알림 + 위젯 + 약관 및 정책
@@ -45,6 +46,7 @@ class _DoctorAppSettingsScreenState extends State<DoctorAppSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<AppSettingsController>();
+    final security = context.watch<SecuritySettingsController>();
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -171,7 +173,45 @@ class _DoctorAppSettingsScreenState extends State<DoctorAppSettingsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // 3. 위젯 섹션
+          // 3. 보안 설정 섹션
+          _buildSectionHeader(context, '보안 설정'),
+          Card(
+            elevation: 0,
+            color: cardColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: borderColor, width: 1),
+            ),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  activeThumbColor: pointColor,
+                  secondary: _buildIconBox(context, Icons.lock_outline_rounded, iconBgColor: iconBgColor),
+                  title: const Text('앱 잠금', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  subtitle: const Text('앱 실행 시 PIN 인증을 사용해요.'),
+                  value: security.appLockEnabled,
+                  onChanged: (v) => security.setAppLockEnabled(v),
+                ),
+                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                SwitchListTile(
+                  activeThumbColor: pointColor,
+                  secondary: _buildIconBox(
+                    context,
+                    Icons.fingerprint_rounded,
+                    isActive: security.appLockEnabled,
+                    iconBgColor: iconBgColor,
+                  ),
+                  title: const Text('생체인증 사용', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  subtitle: const Text('지문 또는 얼굴 인증으로 잠금을 해제해요.'),
+                  value: security.biometricEnabled,
+                  onChanged: security.appLockEnabled ? (v) => security.setBiometricEnabled(v) : null,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 4. 위젯 섹션
           _buildSectionHeader(context, '위젯'),
           Card(
             elevation: 0,
@@ -193,7 +233,7 @@ class _DoctorAppSettingsScreenState extends State<DoctorAppSettingsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // 4. 약관 및 정책 섹션
+          // 5. 약관 및 정책 섹션
           _buildSectionHeader(context, '약관 및 정책'),
           Card(
             elevation: 0,

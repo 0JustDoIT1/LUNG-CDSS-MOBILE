@@ -20,11 +20,22 @@ class _NewChatScreenState extends State<NewChatScreen> {
   String? _errorMessage;
   bool _isLoading = true;
   String? _startingUserId; // 대화 시작 요청 중인 상대(중복 탭 방지 + 로딩 표시)
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _searchController.addListener(() {
+      setState(() => _searchQuery = _searchController.text.trim());
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -98,42 +109,77 @@ class _NewChatScreenState extends State<NewChatScreen> {
       );
     }
 
-    final counterparts = _counterparts ?? [];
-    if (counterparts.isEmpty) {
-      return const Center(child: Text('대화를 시작할 수 있는 상대가 없어요'));
-    }
+    final allCounterparts = _counterparts ?? [];
+    final counterparts = _searchQuery.isEmpty
+        ? allCounterparts
+        : allCounterparts
+            .where((c) => c.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+            .toList();
 
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: counterparts.length,
-      separatorBuilder: (_, _) => const Divider(height: 1, indent: 76),
-      itemBuilder: (context, index) {
-        final counterpart = counterparts[index];
-        final isStarting = _startingUserId == counterpart.id;
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          leading: CircleAvatar(
-            radius: 24,
-            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Text(
-              counterpart.name.isNotEmpty ? counterpart.name.substring(0, 1) : '?',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: '이름으로 검색',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: _searchController.clear,
+                    ),
+              filled: true,
+              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
               ),
             ),
           ),
-          title: Text(counterpart.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-          trailing: isStarting
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : null,
-          onTap: isStarting ? null : () => _startChat(counterpart),
-        );
-      },
+        ),
+        Expanded(
+          child: allCounterparts.isEmpty
+              ? const Center(child: Text('대화를 시작할 수 있는 상대가 없어요'))
+              : counterparts.isEmpty
+                  ? const Center(child: Text('검색 결과가 없어요'))
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: counterparts.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1, indent: 76),
+                      itemBuilder: (context, index) {
+                        final counterpart = counterparts[index];
+                        final isStarting = _startingUserId == counterpart.id;
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          leading: CircleAvatar(
+                            radius: 24,
+                            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            child: Text(
+                              counterpart.name.isNotEmpty ? counterpart.name.substring(0, 1) : '?',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          title: Text(counterpart.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          trailing: isStarting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : null,
+                          onTap: isStarting ? null : () => _startChat(counterpart),
+                        );
+                      },
+                    ),
+        ),
+      ],
     );
   }
 }
