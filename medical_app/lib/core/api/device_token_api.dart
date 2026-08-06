@@ -23,7 +23,7 @@ Future<void> registerDeviceToken({
       },
       body: jsonEncode({
         'fcm_token': fcmToken,
-        'app_type': 'medical',
+        'app_type': 'medical_app',
         'platform': 'android',
         'device_id': deviceId,
       }),
