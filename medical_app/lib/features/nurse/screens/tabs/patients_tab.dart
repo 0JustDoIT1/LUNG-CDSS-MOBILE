@@ -1,11 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/api/auth_api.dart';
 import '../../../../core/api/medications_api.dart';
 import '../../../../core/auth/session_controller.dart';
+import '../../../../core/lifecycle/app_resume_notifier.dart';
 import '../../../../main.dart';
 import '../../models/staff_patient.dart';
 import '../nurse_patient_detail_screen.dart';
@@ -13,7 +12,7 @@ import '../nurse_patient_detail_screen.dart';
 /// 탭 2: 담당환자 목록.
 /// 환자 명단은 실제 API(GET /api/auth/staff/patients/) 기반.
 /// 복약현황(오늘 복약 X/N)은 카드별로 GET /api/medications/logs/today/?patient_id= 조회.
-/// 목록은 10초 폴링 + 포그라운드 푸시 수신 시 즉시 새로고침으로 자동 반영됨.
+/// 목록은 포그라운드 푸시 수신 + 앱 재개(resume) 시 새로고침으로 자동 반영됨.
 class NursePatientsTab extends StatefulWidget {
   const NursePatientsTab({super.key});
 
@@ -25,7 +24,6 @@ class _NursePatientsTabState extends State<NursePatientsTab> {
   List<StaffPatient> _patients = [];
   bool _isLoading = true;
   String? _errorMessage;
-  Timer? _pollTimer;
   final _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -33,8 +31,8 @@ class _NursePatientsTabState extends State<NursePatientsTab> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
     fcmService.incomingMessage.addListener(_silentRefresh);
+    appResumeNotifier.addListener(_silentRefresh);
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim());
     });
@@ -42,8 +40,8 @@ class _NursePatientsTabState extends State<NursePatientsTab> {
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
     fcmService.incomingMessage.removeListener(_silentRefresh);
+    appResumeNotifier.removeListener(_silentRefresh);
     _searchController.dispose();
     super.dispose();
   }

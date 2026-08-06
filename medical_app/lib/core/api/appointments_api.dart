@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_api.dart';
+import '../utils/datetime_utils.dart';
 import '../../features/nurse/models/reservation.dart';
 
 /// GET /api/appointments/queue/ — 예약요청 목록(주로 status=requested).
@@ -157,7 +158,7 @@ class DoctorOffDay {
   factory DoctorOffDay.fromJson(Map<String, dynamic> json) {
     return DoctorOffDay(
       id: json['id'].toString(),
-      date: DateTime.parse(json['date'] as String),
+      date: parseServerDateTime(json['date'] as String),
       isMorningOff: json['is_morning_off'] as bool? ?? false,
       isAfternoonOff: json['is_afternoon_off'] as bool? ?? false,
       reason: json['reason'] as String? ?? '',

@@ -1,11 +1,11 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/api/auth_api.dart';
 import '../../../core/api/communication_api.dart';
 import '../../../core/auth/session_controller.dart';
+import '../../../core/lifecycle/app_resume_notifier.dart';
+import '../../../core/qr/qr_scan_screen.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../main.dart';
 import '../models/notification.dart';
@@ -20,7 +20,8 @@ import 'tabs/settings_tab.dart';
 /// 순서: 예약큐 / 담당환자 / 홈(중앙) / 채팅 / 설정
 ///
 /// 상단바는 탭이 바뀌어도 고정 — 좌측 로고+앱이름, 우측 QR/알림 아이콘.
-/// 채팅/알림 안읽음 개수는 실제 API 기반 — 15초 폴링 + 포그라운드 푸시 수신 시 즉시 갱신.
+/// 채팅/알림 안읽음 개수는 실제 API 기반 — 포그라운드 푸시 수신 시 즉시 갱신 +
+/// 앱이 백그라운드에서 돌아올 때(resume)도 갱신(놓친 푸시 보정).
 class NurseHomeScreen extends StatefulWidget {
   const NurseHomeScreen({super.key});
 
@@ -28,25 +29,32 @@ class NurseHomeScreen extends StatefulWidget {
   State<NurseHomeScreen> createState() => _NurseHomeScreenState();
 }
 
-class _NurseHomeScreenState extends State<NurseHomeScreen> {
+class _NurseHomeScreenState extends State<NurseHomeScreen> with WidgetsBindingObserver {
   int _tabIndex = 2; // 앱 시작 시 홈 탭이 기본으로 보이도록
   int _unreadChatCount = 0;
   int _unreadNotificationCount = 0;
-  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _refreshBadges());
-    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) => _refreshBadges());
     fcmService.incomingMessage.addListener(_refreshBadges);
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     fcmService.incomingMessage.removeListener(_refreshBadges);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshBadges();
+      appResumeNotifier.value++; // 각 탭이 백그라운드 동안 놓친 변경사항 보정
+    }
   }
 
   Future<void> _refreshBadges() async {
@@ -75,10 +83,9 @@ class _NurseHomeScreenState extends State<NurseHomeScreen> {
       ];
 
   void _scanQr() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('QR 스캔은 카메라 연동 후 지원돼요')),
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const QrScanScreen(showCheckInAction: true)),
     );
-    // TODO: 카메라로 QR 스캔 → Redis 토큰 검증 → 자동 checked_in 처리
   }
 
   @override

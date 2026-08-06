@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,6 +6,7 @@ import '../../../../core/api/auth_api.dart';
 import '../../../../core/api/medications_api.dart';
 import '../../../../core/api/symptoms_api.dart';
 import '../../../../core/auth/session_controller.dart';
+import '../../../../core/lifecycle/app_resume_notifier.dart';
 import '../../../../main.dart';
 import '../../models/reservation.dart';
 import '../care_plan_medication_screen.dart';
@@ -17,7 +16,7 @@ import '../symptom_checks_screen.dart';
 /// "담당환자 이상 신호"(GET /api/symptoms/checks/nurse-visible/),
 /// "케어플랜 처리 필요"(GET /api/medications/pending-setup/) 실제 API 연동됨.
 /// 나머지(예약요약/다음방문)는 아직 mock.
-/// 10초 폴링 + 포그라운드 푸시 수신 시 즉시 새로고침으로 자동 반영됨.
+/// 포그라운드 푸시 수신 + 앱 재개(resume) 시 새로고침으로 자동 반영됨.
 class NurseHomeTab extends StatefulWidget {
   final ValueChanged<int> onNavigateToTab;
 
@@ -32,20 +31,19 @@ class _NurseHomeTabState extends State<NurseHomeTab> {
   List<PendingMedicationSetupPatient> _pendingSetup = [];
   List<Appointment> _queue = [];
   List<Appointment> _todayVisits = [];
-  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadRisk());
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _loadRisk());
     fcmService.incomingMessage.addListener(_loadRisk);
+    appResumeNotifier.addListener(_loadRisk);
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
     fcmService.incomingMessage.removeListener(_loadRisk);
+    appResumeNotifier.removeListener(_loadRisk);
     super.dispose();
   }
 

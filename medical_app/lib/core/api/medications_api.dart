@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_api.dart';
+import '../utils/datetime_utils.dart';
 
 /// GET /api/medications/pending-setup/ 항목 하나 (치료계획 확정 · 복약설정 대기 환자).
 class PendingMedicationSetupPatient {
@@ -107,9 +108,9 @@ class MedicationLog {
       id: json['id'] as String,
       drugName: json['drug_name'] as String? ?? '',
       dosage: json['dosage'] as String? ?? '',
-      scheduledTime: DateTime.parse(json['scheduled_time'] as String),
+      scheduledTime: parseServerDateTime(json['scheduled_time'] as String),
       taken: json['taken'] as bool? ?? false,
-      takenAt: json['taken_at'] != null ? DateTime.parse(json['taken_at'] as String) : null,
+      takenAt: json['taken_at'] != null ? parseServerDateTime(json['taken_at'] as String) : null,
     );
   }
 }

@@ -1,3 +1,5 @@
+import '../../../core/utils/datetime_utils.dart';
+
 /// 알림 한 건. 실제 API(GET /api/communication/notifications/) 응답 구조.
 class AppNotification {
   final String id;
@@ -23,7 +25,7 @@ class AppNotification {
       id: json['id'] as String,
       title: json['title'] as String? ?? '',
       message: json['body'] as String? ?? '',
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: parseServerDateTime(json['created_at'] as String),
       type: NotificationType.fromServer(json['category'] as String),
       deepLink: json['deep_link'] as String?,
       isRead: json['is_read'] as bool? ?? false,

@@ -41,7 +41,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
     if (token == null) return;
 
     try {
-      final results = await Future.wait([fetchDoctorProfile(token), fetchHospital()]);
+      final results = await Future.wait([fetchDoctorProfile(token), fetchHospital(token)]);
       final profileData = results[0] as DoctorProfileData;
       final hospital = results[1] as Hospital;
       if (!mounted) return;

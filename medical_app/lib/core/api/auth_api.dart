@@ -133,22 +133,50 @@ class Hospital {
   Hospital({required this.id, required this.name});
 }
 
-Future<Hospital> fetchHospital() async {
+/// accessToken을 넘기면 Authorization 헤더를 같이 보냄(로그인된 화면에서 호출할 때 사용).
+/// 회원가입 화면처럼 아직 토큰이 없는 상태에서는 생략 가능.
+Future<Hospital> fetchHospital([String? accessToken]) async {
   final uri = Uri.parse('$apiBaseUrl/api/auth/hospital/');
 
   http.Response response;
   try {
-    response = await http.get(uri, headers: {'Content-Type': 'application/json'});
+    response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+      },
+    );
   } catch (_) {
     throw ApiException('서버에 연결할 수 없어요. 네트워크 상태를 확인해주세요.');
   }
 
   if (response.statusCode != 200) {
-    throw ApiException('병원 정보를 불러오지 못했어요.');
+    throw ApiException('병원 정보를 불러오지 못했어요. (${response.statusCode})');
   }
 
-  final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
-  return Hospital(id: body['id'] as String, name: body['name'] as String);
+  try {
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    // 응답이 단일 객체가 아니라 배열이거나 { results: [...] } 형태로 올 수도 있어 방어적으로 처리.
+    Map<String, dynamic> body;
+    if (decoded is Map<String, dynamic> && decoded['results'] is List) {
+      final results = decoded['results'] as List;
+      if (results.isEmpty) throw const FormatException('병원 목록이 비어있어요.');
+      body = results.first as Map<String, dynamic>;
+    } else if (decoded is List) {
+      if (decoded.isEmpty) throw const FormatException('병원 목록이 비어있어요.');
+      body = decoded.first as Map<String, dynamic>;
+    } else if (decoded is Map<String, dynamic>) {
+      body = decoded;
+    } else {
+      throw const FormatException('알 수 없는 응답 형식이에요.');
+    }
+    return Hospital(id: body['id'] as String, name: body['name'] as String);
+  } catch (e) {
+    // ignore: avoid_print
+    print('❗ fetchHospital parse error: $e / raw: ${utf8.decode(response.bodyBytes)}');
+    throw ApiException('병원 정보를 불러오지 못했어요. (응답 형식 오류)');
+  }
 }
 
 /// POST /api/auth/staff/signup/ — 성공 시 로그인과 동일하게 JWT 발급됨.
@@ -218,6 +246,40 @@ Future<StaffLoginResult> staffSignup({
   }
   throw ApiException('가입에 실패했어요. (${response.statusCode})');
 }
+/// POST /api/auth/refresh/ — refresh 토큰으로 새 access 토큰 발급받음.
+/// 응답에 refresh가 새로 오면(로테이션) 그것도 같이 갱신, 없으면 기존 refresh 토큰 계속 사용.
+class RefreshTokenResult {
+  final String access;
+  final String? refresh;
+
+  RefreshTokenResult({required this.access, this.refresh});
+}
+
+Future<RefreshTokenResult> refreshAccessToken(String refreshToken) async {
+  final uri = Uri.parse('$apiBaseUrl/api/auth/refresh/');
+
+  http.Response response;
+  try {
+    response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'refresh': refreshToken}),
+    );
+  } catch (_) {
+    throw ApiException('서버에 연결할 수 없어요. 네트워크 상태를 확인해주세요.');
+  }
+
+  if (response.statusCode != 200) {
+    throw ApiException('세션 갱신에 실패했어요. (${response.statusCode})');
+  }
+
+  final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+  return RefreshTokenResult(
+    access: data['access'] as String,
+    refresh: data['refresh'] as String?,
+  );
+}
+
 /// 로그인/가입 실패(잘못된 이메일/비밀번호, 검증오류 등) 시 던지는 예외.
 /// message는 사용자에게 그대로 보여줄 수 있는 문구.
 class ApiException implements Exception {

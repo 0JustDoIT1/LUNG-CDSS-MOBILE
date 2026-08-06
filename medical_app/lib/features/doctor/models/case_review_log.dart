@@ -1,3 +1,5 @@
+import '../../../core/utils/datetime_utils.dart';
+
 /// 케이스 검토 이력 한 건. GET /api/cases/{case_id}/review-log/ 응답 구조(실제 확인됨).
 class CaseReviewLog {
   final String caseId;
@@ -22,7 +24,7 @@ class CaseReviewLog {
       caseId: caseId,
       action: actionValue == 'edited' ? ReviewAction.edited : ReviewAction.confirmed,
       reviewerName: json['reviewer_name'] as String? ?? '',
-      timestamp: DateTime.parse(json['created_at'] as String),
+      timestamp: parseServerDateTime(json['created_at'] as String),
       opinionSnapshot: json['note_at_time'] as String? ?? '',
       subtypeAtTime: json['subtype_at_time'] as String?,
     );

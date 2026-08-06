@@ -1,3 +1,5 @@
+import '../../../core/utils/datetime_utils.dart';
+
 /// 의사가 검토해야 하는 케이스 하나.
 /// 실제 API(GET /api/cases/, GET /api/cases/{id}/) 응답 구조에 맞춘 모델.
 /// 주의: prediction_label/luad_probability/lusc_probability/heatmap_url/
@@ -66,9 +68,9 @@ class ReviewCase {
       type: type,
       confidence: type == CaseType.luad ? luad : lusc,
       status: json['status'] == 'confirmed' ? CaseStatus.confirmed : CaseStatus.pending,
-      uploadedAt: DateTime.parse(json['uploaded_at'] as String),
+      uploadedAt: parseServerDateTime(json['uploaded_at'] as String),
       completedAt: json['completed_at'] != null
-          ? DateTime.parse(json['completed_at'] as String)
+          ? parseServerDateTime(json['completed_at'] as String)
           : null,
       isFavorite: json['is_favorite'] as bool? ?? false,
       slideThumbnailUrl: json['slide_thumbnail_url'] as String?,
@@ -90,8 +92,8 @@ class GenePrediction {
 
   factory GenePrediction.fromJson(Map<String, dynamic> json) {
     return GenePrediction(
-      gene: json['gene'] as String? ?? '',
-      probability: (json['probability'] as num?)?.toDouble() ?? 0,
+      gene: json['gene_name'] as String? ?? '',
+      probability: (json['likelihood'] as num?)?.toDouble() ?? 0,
     );
   }
 }

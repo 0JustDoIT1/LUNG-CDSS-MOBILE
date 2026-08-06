@@ -1,3 +1,5 @@
+import '../../../core/utils/datetime_utils.dart';
+
 /// 예약 한 건. 실제 API(GET /api/appointments/queue/, .../today-visits/) 응답 구조.
 /// TODO: 실제 연결 시 fromJson() 확인 완료됨 — 필드 추가되면 여기 갱신.
 class Appointment {
@@ -30,12 +32,12 @@ class Appointment {
       patientName: json['patient_name'] as String? ?? '',
       doctorName: json['doctor_name'] as String? ?? '',
       department: json['department'] as String? ?? '',
-      requestedAtSlot: DateTime.parse(json['requested_at_slot'] as String),
+      requestedAtSlot: parseServerDateTime(json['requested_at_slot'] as String),
       confirmedSlot: json['confirmed_slot'] != null
-          ? DateTime.parse(json['confirmed_slot'] as String)
+          ? parseServerDateTime(json['confirmed_slot'] as String)
           : null,
       status: AppointmentStatus.fromServer(json['status'] as String),
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: parseServerDateTime(json['created_at'] as String),
     );
   }
 }

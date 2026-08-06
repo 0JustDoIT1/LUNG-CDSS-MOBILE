@@ -1,18 +1,17 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/api/appointments_api.dart';
 import '../../../../core/api/auth_api.dart';
 import '../../../../core/auth/session_controller.dart';
+import '../../../../core/lifecycle/app_resume_notifier.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../main.dart';
 import '../../models/reservation.dart';
 
 /// 탭 1: 예약요청 큐 관리 + 진료관리(방문/미방문 처리).
 /// 실제 API(GET .../queue/, .../today-visits/, POST .../process/ 등) 연동됨.
-/// 두 하위 탭 모두 10초 폴링 + 포그라운드 푸시 수신 시 즉시 새로고침으로 자동 반영됨.
+/// 두 하위 탭 모두 포그라운드 푸시 수신 + 앱 재개(resume) 시 새로고침으로 자동 반영됨.
 class QueueTab extends StatefulWidget {
   const QueueTab({super.key});
 
@@ -75,20 +74,19 @@ class _RequestQueueViewState extends State<_RequestQueueView> {
   List<Appointment>? _appointments;
   String? _errorMessage;
   bool _isLoading = true;
-  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
     fcmService.incomingMessage.addListener(_silentRefresh);
+    appResumeNotifier.addListener(_silentRefresh);
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
     fcmService.incomingMessage.removeListener(_silentRefresh);
+    appResumeNotifier.removeListener(_silentRefresh);
     super.dispose();
   }
 
@@ -332,20 +330,19 @@ class _TodayVisitsViewState extends State<_TodayVisitsView> {
   List<Appointment>? _appointments;
   String? _errorMessage;
   bool _isLoading = true;
-  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
     fcmService.incomingMessage.addListener(_silentRefresh);
+    appResumeNotifier.addListener(_silentRefresh);
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
     fcmService.incomingMessage.removeListener(_silentRefresh);
+    appResumeNotifier.removeListener(_silentRefresh);
     super.dispose();
   }
 

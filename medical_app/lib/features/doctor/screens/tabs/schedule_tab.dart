@@ -1,11 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/api/appointments_api.dart';
 import '../../../../core/api/auth_api.dart';
 import '../../../../core/auth/session_controller.dart';
+import '../../../../core/lifecycle/app_resume_notifier.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../main.dart';
 import '../../models/appointment.dart';
@@ -16,7 +15,7 @@ import '../patient_detail_screen.dart';
 /// - 캘린더뷰: 월간/주간 전환, 예약 있는 날짜 점표시
 /// - 날짜 선택시 해당일 시간순 예약목록(환자명, 시간, 상태)
 /// - 휴진일정 등록 버튼
-/// - 10초 폴링 + 포그라운드 푸시 수신 시 즉시 새로고침으로 자동 반영
+/// - 포그라운드 푸시 수신 + 앱 재개(resume) 시 새로고침으로 자동 반영
 class ScheduleTab extends StatefulWidget {
   const ScheduleTab({super.key});
 
@@ -50,20 +49,19 @@ class _ScheduleTabState extends State<ScheduleTab> {
   List<DoctorOffDay> _offDays = [];
   String? _errorMessage;
   bool _isLoading = true;
-  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
     fcmService.incomingMessage.addListener(_silentRefresh);
+    appResumeNotifier.addListener(_silentRefresh);
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
     fcmService.incomingMessage.removeListener(_silentRefresh);
+    appResumeNotifier.removeListener(_silentRefresh);
     super.dispose();
   }
 

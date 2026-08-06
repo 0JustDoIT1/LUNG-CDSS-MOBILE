@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'auth_api.dart';
+import '../utils/datetime_utils.dart';
 
 /// 채팅 스레드 하나. GET /api/communication/threads/ 응답 구조.
 /// 목록은 서버가 이미 last_message_at 최신순으로 정렬해서 줌 — 클라이언트에서 재정렬 불필요.
@@ -34,8 +35,8 @@ class ChatThread {
       lastMessage: json['last_message'] as String? ?? '',
       // 문서상 타입이 string으로 나와서 안전하게 파싱
       unreadCount: int.tryParse('${json['unread_count']}') ?? 0,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      lastMessageAt: DateTime.parse(
+      createdAt: parseServerDateTime(json['created_at'] as String),
+      lastMessageAt: parseServerDateTime(
         json['last_message_at'] as String? ?? json['created_at'] as String,
       ),
     );
@@ -167,7 +168,7 @@ class ChatMessage {
       sender: json['sender'] as String,
       senderName: json['sender_name'] as String? ?? '',
       content: json['content'] as String? ?? '',
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: parseServerDateTime(json['created_at'] as String),
     );
   }
 }

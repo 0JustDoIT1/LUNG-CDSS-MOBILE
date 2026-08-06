@@ -67,6 +67,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
         _hospitalLoading = false;
         _errorMessage = e.message;
       });
+    } catch (_) {
+      // fetchHospital()이 예상 못한 예외를 던져도 로딩 스피너가 영원히 멈추지 않게 방어.
+      if (!mounted) return;
+      setState(() {
+        _hospitalLoading = false;
+        _errorMessage = '병원 정보를 불러오지 못했어요.';
+      });
     }
   }
 

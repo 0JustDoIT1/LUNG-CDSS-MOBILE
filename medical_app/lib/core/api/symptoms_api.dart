@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_api.dart';
+import '../utils/datetime_utils.dart';
 
 /// 증상체크 위험도 판정 결과 한 건.
 /// 실제 API(GET /api/symptoms/checks/nurse-visible/) 응답 구조.
@@ -38,12 +39,12 @@ class SymptomCheck {
     return SymptomCheck(
       id: json['id'] as String,
       patientName: json['patient_name'] as String? ?? '',
-      checkedAt: DateTime.parse(json['checked_at'] as String),
+      checkedAt: parseServerDateTime(json['checked_at'] as String),
       riskLevel: json['risk_level'] as String? ?? 'green',
       visibleToNurse: json['visible_to_nurse'] as bool? ?? false,
       nurseReviewed: json['nurse_reviewed'] as bool? ?? false,
       nurseReviewedAt: json['nurse_reviewed_at'] != null
-          ? DateTime.parse(json['nurse_reviewed_at'] as String)
+          ? parseServerDateTime(json['nurse_reviewed_at'] as String)
           : null,
     );
   }

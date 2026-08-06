@@ -1,11 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/api/auth_api.dart';
 import '../../../../core/api/cases_api.dart';
 import '../../../../core/auth/session_controller.dart';
+import '../../../../core/lifecycle/app_resume_notifier.dart';
 import '../../../../main.dart';
 import '../../models/review_case.dart';
 import '../case_detail_screen.dart';
@@ -15,7 +14,7 @@ import '../case_detail_screen.dart';
 /// - 정렬: confidence 낮은순(기본) ↔ 접수순 토글
 /// - 즐겨찾기 필터: 즐겨찾기한 케이스만 보기
 /// - confidence 70% 미만이면 빨간 "긴급" 뱃지
-/// - 10초 폴링 + 포그라운드 푸시 수신 시 즉시 새로고침으로, 새로 들어온 케이스가 바로 반영됨.
+/// - 포그라운드 푸시 수신 + 앱 재개(resume) 시 새로고침으로, 새로 들어온 케이스가 반영됨.
 class CasesTab extends StatefulWidget {
   const CasesTab({super.key});
 
@@ -32,20 +31,19 @@ class _CasesTabState extends State<CasesTab> {
   List<ReviewCase>? _cases;
   String? _errorMessage;
   bool _isLoading = true;
-  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
     fcmService.incomingMessage.addListener(_silentRefresh);
+    appResumeNotifier.addListener(_silentRefresh);
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
     fcmService.incomingMessage.removeListener(_silentRefresh);
+    appResumeNotifier.removeListener(_silentRefresh);
     super.dispose();
   }
 

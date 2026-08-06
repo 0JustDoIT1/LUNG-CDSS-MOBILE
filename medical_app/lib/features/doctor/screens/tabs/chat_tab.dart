@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,12 +6,13 @@ import '../../../../core/api/communication_api.dart' as api;
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/chat/chat_room_screen.dart';
 import '../../../../core/chat/new_chat_screen.dart';
+import '../../../../core/lifecycle/app_resume_notifier.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../main.dart';
 
 /// 탭 4: 의사 채팅 목록. 실제 API(GET /api/communication/threads/) 연동됨.
 /// 채팅방 안 메시지 조회/전송도 실제 API+WS 연동됨.
-/// 목록은 10초 폴링 + 포그라운드 푸시 수신 시 즉시 새로고침으로 최신 상태 유지.
+/// 목록은 포그라운드 푸시 수신 + 앱 재개(resume) 시 새로고침으로 최신 상태 유지.
 class ChatTab extends StatefulWidget {
   const ChatTab({super.key});
 
@@ -25,7 +24,6 @@ class _ChatTabState extends State<ChatTab> {
   List<api.ChatThread>? _threads;
   String? _errorMessage;
   bool _isLoading = true;
-  Timer? _pollTimer;
   final _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -33,8 +31,8 @@ class _ChatTabState extends State<ChatTab> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
     fcmService.incomingMessage.addListener(_silentRefresh);
+    appResumeNotifier.addListener(_silentRefresh);
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim());
     });
@@ -42,8 +40,8 @@ class _ChatTabState extends State<ChatTab> {
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
     fcmService.incomingMessage.removeListener(_silentRefresh);
+    appResumeNotifier.removeListener(_silentRefresh);
     _searchController.dispose();
     super.dispose();
   }
