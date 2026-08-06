@@ -10,6 +10,7 @@ import '../../features/auth/screens/pin_lock_screen.dart';
 import '../../features/doctor/screens/doctor_home_screen.dart';
 import '../../features/nurse/screens/nurse_home_screen.dart';
 import '../../features/splash/splash_screen.dart';
+import '../chat/chat_deep_link_screen.dart';
 
 /// 앱 전체 라우팅.
 ///
@@ -65,6 +66,12 @@ GoRouter buildRouter(SessionController session, SecuritySettingsController secur
       GoRoute(
         path: '/nurse',
         builder: (context, state) => const NurseHomeScreen(),
+      ),
+      GoRoute(
+        path: '/chat/:threadId',
+        builder: (context, state) => ChatDeepLinkScreen(
+          threadId: state.pathParameters['threadId']!,
+        ),
       ),
     ],
   );

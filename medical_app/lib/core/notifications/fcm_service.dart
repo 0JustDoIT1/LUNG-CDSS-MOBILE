@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../main.dart';
 import '../api/auth_api.dart';
 import '../api/device_token_api.dart';
 
@@ -44,6 +45,19 @@ class FcmService {
         await _setupAndroidChannel();
         _listenForegroundMessages();
         _initialized = true;
+
+        // 종료 상태에서 알림 탭으로 앱이 시작된 경우
+        final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+        if (initialMessage != null) {
+          debugPrint('[FCM] 종료 상태에서 알림 탭으로 앱 시작됨');
+          _handleOpenedMessage(initialMessage);
+        }
+
+        // 백그라운드 상태에서 알림을 탭해 앱이 포그라운드로 올라온 경우
+        FirebaseMessaging.onMessageOpenedApp.listen((message) {
+          debugPrint('[FCM] 백그라운드 상태에서 알림 탭됨');
+          _handleOpenedMessage(message);
+        });
       }
 
       // 토큰 발급 + 서버 등록
@@ -117,7 +131,15 @@ class FcmService {
     const initSettings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
     );
-    await _localNotifications.initialize(initSettings);
+    await _localNotifications.initialize(
+      initSettings,
+      // 포그라운드에서 직접 띄운 로컬 알림을 탭했을 때 — payload에 deep_link를 담아 전달함
+      onDidReceiveNotificationResponse: (response) {
+        final deepLink = response.payload;
+        debugPrint('[FCM] 포그라운드 로컬 알림 탭됨 (deepLink=$deepLink)');
+        if (deepLink != null) _navigateToDeepLink(deepLink);
+      },
+    );
   }
 
   void _listenForegroundMessages() {
@@ -137,9 +159,21 @@ class FcmService {
             priority: Priority.high,
           ),
         ),
+        payload: message.data['deep_link'],
       );
 
       incomingMessage.value = message;
     });
+  }
+
+  /// 백그라운드/종료 상태에서 알림을 탭해 앱으로 들어온 경우 data['deep_link']로 이동.
+  void _handleOpenedMessage(RemoteMessage message) {
+    final deepLink = message.data['deep_link'];
+    if (deepLink != null) _navigateToDeepLink(deepLink);
+  }
+
+  void _navigateToDeepLink(String deepLink) {
+    debugPrint('[FCM] 딥링크 이동: $deepLink');
+    appRouter.push(deepLink);
   }
 }

@@ -44,6 +44,7 @@ class _MedicalAppViewState extends State<_MedicalAppView> {
       context.read<SessionController>(),
       context.read<SecuritySettingsController>(),
     );
+    appRouter = _router;
   }
 
   @override
