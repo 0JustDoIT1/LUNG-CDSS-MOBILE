@@ -25,6 +25,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  /// 내가 보낸 메시지를 화면에 즉시 그려주고(낙관적 렌더링), 서버가 WS로 되돌려준 진짜
+  /// 메시지가 도착하면 여기서 짝을 찾아 교체 — 안 그러면 WS 왕복 시간만큼 전송이 느리게 느껴진다.
+  final List<ChatMessage> _pendingOptimistic = [];
+
   ChatSocket? _socket;
   String? _myUserId;
   bool _isLoading = true;
@@ -80,7 +84,23 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       accessToken: token,
       onMessage: (message) {
         if (!mounted) return;
-        setState(() => _messages.add(message));
+        setState(() {
+          final matchIndex = message.sender == _myUserId
+              ? _pendingOptimistic.indexWhere((m) => m.content == message.content)
+              : -1;
+          if (matchIndex == -1) {
+            _messages.add(message);
+          } else {
+            // 내가 낙관적으로 그려둔 메시지를 서버가 확정한 진짜 메시지로 교체.
+            final optimistic = _pendingOptimistic.removeAt(matchIndex);
+            final listIndex = _messages.indexOf(optimistic);
+            if (listIndex == -1) {
+              _messages.add(message);
+            } else {
+              _messages[listIndex] = message;
+            }
+          }
+        });
         _scrollToBottom(animated: true);
       },
     )..connect();
@@ -116,9 +136,24 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   void _send() {
     final text = _inputController.text.trim();
-    if (text.isEmpty) return;
-    _socket?.send(text);
+    final myId = _myUserId;
+    if (text.isEmpty || myId == null) return;
+
+    final optimistic = ChatMessage(
+      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+      sender: myId,
+      senderName: '',
+      content: text,
+      createdAt: DateTime.now(),
+    );
+    setState(() {
+      _messages.add(optimistic);
+      _pendingOptimistic.add(optimistic);
+    });
+    _scrollToBottom(animated: true);
+
     _inputController.clear();
+    _socket?.send(text);
   }
 
   bool _isSameDay(DateTime a, DateTime b) =>

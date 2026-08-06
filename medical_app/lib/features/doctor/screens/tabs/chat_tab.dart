@@ -258,8 +258,10 @@ class _ChatTabState extends State<ChatTab> {
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     itemCount: filteredThreads.length,
-                    itemBuilder: (context, index) =>
-                        _ThreadTile(thread: filteredThreads[index]),
+                    itemBuilder: (context, index) => _ThreadTile(
+                      thread: filteredThreads[index],
+                      onReturned: _silentRefresh,
+                    ),
                   ),
                 ),
         ),
@@ -355,8 +357,9 @@ class _ChatHeader extends StatelessWidget {
 /// 🎨 카드 스타일 대화 타일
 class _ThreadTile extends StatelessWidget {
   final api.ChatThread thread;
+  final VoidCallback onReturned;
 
-  const _ThreadTile({required this.thread});
+  const _ThreadTile({required this.thread, required this.onReturned});
 
   String _timeLabel(DateTime time) {
     final now = DateTime.now();
@@ -393,12 +396,14 @@ class _ThreadTile extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            Navigator.of(context).push(
+          onTap: () async {
+            await Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => ChatRoomScreen(thread: thread),
               ),
             );
+            // 채팅방에서 메시지를 읽었을 수 있으니 돌아오면 안읽음 뱃지 갱신.
+            onReturned();
           },
           child: Padding(
             padding: const EdgeInsets.all(14),

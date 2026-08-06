@@ -51,10 +51,14 @@ dependencies:
 
   # 서버 API 연동
   http: ^1.2.2
+  http_parser: ^4.0.2 # multipart 업로드 시 Content-Type 지정용
   web_socket_channel: ^3.0.1 # 실시간 채팅(WS)
 
   # QR 카메라 스캔 (환자 진료카드 QR 인식)
   mobile_scanner: ^6.0.2
+
+  # 프로필 사진 선택 (갤러리/카메라)
+  image_picker: ^1.1.2
 
   # 한국어 로케일 (날짜선택 등 시스템 다이얼로그 한글화)
   flutter_localizations:

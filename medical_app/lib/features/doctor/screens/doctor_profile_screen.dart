@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/api/auth_api.dart';
@@ -6,11 +7,9 @@ import '../../../core/auth/session_controller.dart';
 import '../models/doctor_profile.dart';
 
 /// 내 프로필 설정. GET /api/auth/doctor/profile/ + GET /api/auth/hospital/ 연동됨.
-/// - 프로필사진: 업로드/변경 (GCS → DoctorProfile.photo_url)
+/// - 프로필사진: 업로드/변경. POST .../photo/로 GCS 업로드 후 반환된 URL을 PATCH .../profile/로 저장.
 /// - 전문분야 태그: 자유 태그 추가/삭제 (DoctorProfile.specialty_tags)
 /// - 기본정보: 이름(로그인응답), 소속병원, 진료과·면허번호(서버 조회만 가능, 읽기전용)
-///
-/// TODO: 실제 연결 시 사진 업로드는 image_picker + GCS 업로드 API 연결.
 class DoctorProfileScreen extends StatefulWidget {
   const DoctorProfileScreen({super.key});
 
@@ -22,6 +21,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
   DoctorProfile? _profile;
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isUploadingPhoto = false;
   String? _errorMessage;
 
   @override
@@ -108,11 +108,67 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
     });
   }
 
-  void _changePhoto() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('사진 변경은 API 연결 후 지원돼요')),
+  Future<void> _changePhoto() async {
+    if (_isUploadingPhoto) return;
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('카메라로 촬영'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('갤러리에서 선택'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
     );
-    // TODO: image_picker로 사진 선택 → GCS 업로드 → photo_url 갱신
+    if (source == null || !mounted) return;
+
+    final picked = await ImagePicker().pickImage(source: source, imageQuality: 90);
+    if (picked == null || !mounted) return;
+
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+
+    setState(() => _isUploadingPhoto = true);
+    try {
+      final bytes = await picked.readAsBytes();
+      final photoUrl = await uploadDoctorProfilePhoto(
+        accessToken: token,
+        bytes: bytes,
+        filename: picked.name,
+        mimeType: picked.mimeType,
+      );
+      // PATCH .../profile/는 서버가 405(Method Not Allowed)를 반환해서, "저장" 버튼과 같은
+      // PUT 엔드포인트로 photo_url + 기존 specialty_tags를 함께 보내는 방식으로 저장한다.
+      await updateDoctorProfile(
+        accessToken: token,
+        specialtyTags: _profile?.specialtyTags ?? const [],
+        photoUrl: photoUrl,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _profile = _profile?.copyWith(photoUrl: photoUrl);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('프로필 사진이 변경됐어요')),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _isUploadingPhoto = false);
+    }
   }
 
   Future<void> _save() async {
@@ -178,7 +234,11 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                   Center(
                     child: Column(
                       children: [
-                        _ProfilePhoto(onTap: _changePhoto),
+                        _ProfilePhoto(
+                          photoUrl: profile.photoUrl,
+                          isUploading: _isUploadingPhoto,
+                          onTap: _changePhoto,
+                        ),
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: _changePhoto,
@@ -266,21 +326,41 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
 }
 
 class _ProfilePhoto extends StatelessWidget {
+  final String? photoUrl;
+  final bool isUploading;
   final VoidCallback onTap;
 
-  const _ProfilePhoto({required this.onTap});
+  const _ProfilePhoto({
+    required this.photoUrl,
+    required this.isUploading,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: isUploading ? null : onTap,
       child: Stack(
         children: [
           CircleAvatar(
             radius: 48,
             backgroundColor: Colors.blue.shade50,
-            child: Icon(Icons.person, size: 48, color: Colors.blue.shade200),
+            backgroundImage: photoUrl != null ? NetworkImage(photoUrl!) : null,
+            child: photoUrl == null
+                ? Icon(Icons.person, size: 48, color: Colors.blue.shade200)
+                : null,
           ),
+          if (isUploading)
+            const Positioned.fill(
+              child: CircleAvatar(
+                backgroundColor: Colors.black45,
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                ),
+              ),
+            ),
           Positioned(
             right: 0,
             bottom: 0,

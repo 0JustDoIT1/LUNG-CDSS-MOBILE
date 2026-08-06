@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../../features/nurse/models/staff_patient.dart';
 
 /// LUNG-CDSS 백엔드 주소.
@@ -123,6 +124,72 @@ Future<void> updateDoctorProfile({
   if (response.statusCode != 200) {
     throw ApiException('저장에 실패했어요. (${response.statusCode})');
   }
+}
+
+/// 사진 업로드 API가 허용하는 최대 용량(5MB) — 불필요한 업로드 시도를 막기 위해 클라이언트에서도 미리 검증.
+const int maxDoctorProfilePhotoBytes = 5 * 1024 * 1024;
+
+MediaType? _doctorPhotoContentType({String? mimeType, required String filename}) {
+  // 카메라로 촬영한 경우 파일명에 확장자가 없을 수 있어, mimeType을 우선 사용하고 안되면 확장자로 판별.
+  switch (mimeType) {
+    case 'image/jpeg':
+      return MediaType('image', 'jpeg');
+    case 'image/png':
+      return MediaType('image', 'png');
+    case 'image/webp':
+      return MediaType('image', 'webp');
+  }
+
+  final ext = filename.toLowerCase().split('.').last;
+  return switch (ext) {
+    'jpg' || 'jpeg' => MediaType('image', 'jpeg'),
+    'png' => MediaType('image', 'png'),
+    'webp' => MediaType('image', 'webp'),
+    _ => null,
+  };
+}
+
+/// POST /api/auth/doctor/profile/photo/ — 프로필 사진을 GCS에 업로드하고 photo_url을 반환.
+/// 업로드만으로는 프로필에 반영되지 않으니, 반환된 URL을 updateDoctorProfilePhotoUrl()로 저장해야 함.
+Future<String> uploadDoctorProfilePhoto({
+  required String accessToken,
+  required List<int> bytes,
+  required String filename,
+  String? mimeType,
+}) async {
+  if (bytes.length > maxDoctorProfilePhotoBytes) {
+    throw ApiException('사진 용량은 5MB 이하만 가능해요.');
+  }
+
+  final contentType = _doctorPhotoContentType(mimeType: mimeType, filename: filename);
+  if (contentType == null) {
+    throw ApiException('JPEG, PNG, WebP 형식만 업로드할 수 있어요.');
+  }
+
+  final uri = Uri.parse('$apiBaseUrl/api/auth/doctor/profile/photo/');
+  final request = http.MultipartRequest('POST', uri)
+    ..headers['Authorization'] = 'Bearer $accessToken'
+    ..files.add(http.MultipartFile.fromBytes(
+      'photo',
+      bytes,
+      filename: filename,
+      contentType: contentType,
+    ));
+
+  http.Response response;
+  try {
+    final streamed = await request.send();
+    response = await http.Response.fromStream(streamed);
+  } catch (_) {
+    throw ApiException('서버에 연결할 수 없어요. 네트워크 상태를 확인해주세요.');
+  }
+
+  if (response.statusCode != 201) {
+    throw ApiException('사진 업로드에 실패했어요. (${response.statusCode})');
+  }
+
+  final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+  return body['photo_url'] as String;
 }
 
 /// GET /api/auth/hospital/ — 로그인 없이도 조회 가능(현재는 병원 1곳만 존재).

@@ -187,7 +187,7 @@ class _NurseChatTabState extends State<NurseChatTab> {
             ),
             const SizedBox(height: 4),
             Text(
-              '우측 하단 버튼을 눌러 환자와 새 대화를 시작해보세요',
+              '우측 하단 버튼을 눌러 새 대화를 시작해보세요',
               style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
             ),
           ],
@@ -212,7 +212,7 @@ class _NurseChatTabState extends State<NurseChatTab> {
             controller: _searchController,
             style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
             decoration: InputDecoration(
-              hintText: '환자 이름으로 검색',
+              hintText: '이름으로 검색',
               hintStyle: TextStyle(fontSize: 14, color: Colors.grey.shade400),
               prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF2B78D4)),
               suffixIcon: _searchQuery.isEmpty
@@ -258,8 +258,10 @@ class _NurseChatTabState extends State<NurseChatTab> {
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     itemCount: filteredThreads.length,
-                    itemBuilder: (context, index) =>
-                        _ThreadTile(thread: filteredThreads[index]),
+                    itemBuilder: (context, index) => _ThreadTile(
+                      thread: filteredThreads[index],
+                      onReturned: _silentRefresh,
+                    ),
                   ),
                 ),
         ),
@@ -297,7 +299,7 @@ class _ChatHeader extends StatelessWidget {
           Row(
             children: [
               const Text(
-                '환자 대화',
+                '채팅',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -355,8 +357,9 @@ class _ChatHeader extends StatelessWidget {
 /// 🎨 카드 스타일 대화 타일
 class _ThreadTile extends StatelessWidget {
   final api.ChatThread thread;
+  final VoidCallback onReturned;
 
-  const _ThreadTile({required this.thread});
+  const _ThreadTile({required this.thread, required this.onReturned});
 
   String _timeLabel(DateTime time) {
     final now = DateTime.now();
@@ -393,18 +396,20 @@ class _ThreadTile extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            Navigator.of(context).push(
+          onTap: () async {
+            await Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => ChatRoomScreen(thread: thread),
               ),
             );
+            // 채팅방에서 메시지를 읽었을 수 있으니 돌아오면 안읽음 뱃지 갱신.
+            onReturned();
           },
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(
               children: [
-                /// 환자 프로필 아바타
+                ///  프로필 아바타
                 Stack(
                   children: [
                     Container(
@@ -439,7 +444,7 @@ class _ThreadTile extends StatelessWidget {
 
                 const SizedBox(width: 12),
 
-                /// 이름 + 환자 태그 + 마지막 메시지
+                /// 이름 + 태그 + 마지막 메시지
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -463,7 +468,7 @@ class _ThreadTile extends StatelessWidget {
                               border: Border.all(color: Colors.grey.shade300),
                             ),
                             child: Text(
-                              '환자',
+                              '의료진',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,

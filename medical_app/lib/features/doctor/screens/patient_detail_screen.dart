@@ -44,6 +44,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
 
     try {
       final staffPatients = await fetchStaffPatients(token);
+      debugPrint('[PatientDetail] staffPatients=${staffPatients.length}명, 찾는 이름="${widget.patientName}"');
       StaffPatient? patient;
       for (final p in staffPatients) {
         if (p.name == widget.patientName) {
@@ -52,6 +53,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
         }
       }
       if (patient == null) {
+        debugPrint('[PatientDetail] 이름 일치하는 환자 없음. 목록: ${staffPatients.map((p) => p.name).toList()}');
         if (!mounted) return;
         setState(() {
           _isLoading = false;
@@ -59,16 +61,21 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
         });
         return;
       }
+      debugPrint('[PatientDetail] 매칭된 환자 id=${patient.id}');
 
       final cases = await fetchCasesByPatientName(widget.patientName, token);
+      debugPrint('[PatientDetail] search 결과 케이스 ${cases.length}건: ${cases.map((c) => '${c.patientName}/${c.status}').toList()}');
       final confirmedCases = cases.where((c) => c.status == CaseStatus.confirmed && c.finalSubtype != null).toList()
         ..sort((a, b) => (b.completedAt ?? b.uploadedAt).compareTo(a.completedAt ?? a.uploadedAt));
+      debugPrint('[PatientDetail] 확정+finalSubtype 있는 케이스 ${confirmedCases.length}건');
 
       PatientIntake? intake;
       try {
         intake = await fetchPatientIntake(patient.id, token);
-      } on ApiException catch (_) {
+        debugPrint('[PatientDetail] intake 조회 결과: ${intake == null ? 'null(미제출/404)' : '${intake.answers.length}개 응답'}');
+      } on ApiException catch (e) {
         // 문진표 조회 실패는 조용히 무시 — 나머지 정보는 계속 보여줘야 함
+        debugPrint('[PatientDetail] intake 조회 실패: ${e.message}');
       }
 
       if (!mounted) return;
