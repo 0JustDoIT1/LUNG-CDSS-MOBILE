@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'auth_api.dart';
@@ -30,6 +31,8 @@ Future<void> registerDeviceToken({
   } catch (_) {
     throw ApiException('서버에 연결할 수 없어요. 네트워크 상태를 확인해주세요.');
   }
+
+  debugPrint('[FCM] device-token 응답: ${response.statusCode} ${response.body}');
 
   if (response.statusCode != 200 && response.statusCode != 201) {
     throw ApiException('기기 토큰 등록에 실패했어요. (${response.statusCode})');

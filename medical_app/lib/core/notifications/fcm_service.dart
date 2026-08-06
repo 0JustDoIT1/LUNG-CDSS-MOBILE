@@ -26,44 +26,58 @@ class FcmService {
   bool _initialized = false;
 
   Future<void> init(String accessToken) async {
-    // 권한요청
-    final settings = await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-    if (settings.authorizationStatus == AuthorizationStatus.denied) {
-      return; // 거부 시 조용히 종료 — 앱 사용엔 지장 없어야 함
-    }
+    debugPrint('[FCM] init() 시작');
+    try {
+      // 권한요청
+      final settings = await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      debugPrint('[FCM] 권한 상태: ${settings.authorizationStatus}');
+      if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        debugPrint('[FCM] 권한 거부됨 — 토큰 등록 중단');
+        return; // 거부 시 조용히 종료 — 앱 사용엔 지장 없어야 함
+      }
 
-    if (!_initialized) {
-      await _setupAndroidChannel();
-      _listenForegroundMessages();
-      _initialized = true;
-    }
+      if (!_initialized) {
+        await _setupAndroidChannel();
+        _listenForegroundMessages();
+        _initialized = true;
+      }
 
-    // 토큰 발급 + 서버 등록
-    final token = await FirebaseMessaging.instance.getToken();
-    if (token != null) {
-      await _registerToken(token, accessToken);
-    }
+      // 토큰 발급 + 서버 등록
+      final token = await FirebaseMessaging.instance.getToken();
+      debugPrint('[FCM] getToken() 결과: ${token == null ? 'null' : '${token.substring(0, 12)}...(len=${token.length})'}');
+      if (token != null) {
+        await _registerToken(token, accessToken);
+      } else {
+        debugPrint('[FCM] 토큰이 null이라 서버 등록을 건너뜀');
+      }
 
-    // 토큰이 갱신될 때마다(드물게 발생) 재등록
-    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-      _registerToken(newToken, accessToken);
-    });
+      // 토큰이 갱신될 때마다(드물게 발생) 재등록
+      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+        debugPrint('[FCM] onTokenRefresh 발생 — 재등록 시도');
+        _registerToken(newToken, accessToken);
+      });
+    } catch (e, st) {
+      debugPrint('[FCM] init() 중 예외 발생: $e\n$st');
+    }
   }
 
   Future<void> _registerToken(String fcmToken, String accessToken) async {
     final deviceId = await _getOrCreateDeviceId();
+    debugPrint('[FCM] POST /api/auth/device-token/ 호출 시도 (deviceId=$deviceId)');
     try {
       await registerDeviceToken(
         fcmToken: fcmToken,
         deviceId: deviceId,
         accessToken: accessToken,
       );
-    } on ApiException catch (_) {
-      // 등록 실패해도 조용히 무시 — 다음 앱 실행 시 재시도됨
+      debugPrint('[FCM] 디바이스 토큰 서버 등록 성공');
+    } on ApiException catch (e) {
+      // 등록 실패해도 앱 동작엔 영향 없음 — 다음 앱 실행 시 재시도됨. 원인 파악용으로 로그만 남김.
+      debugPrint('[FCM] 디바이스 토큰 서버 등록 실패: ${e.message}');
     }
   }
 
