@@ -3,11 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../data/models/chat_message.dart';
 import '../../../../data/repositories/chat_repository.dart';
+import '../../../auth/presentation/providers/auth_dependency_providers.dart';
 import '../../data/api_chat_repository.dart';
 import '../../data/chat_api.dart';
 
 final chatRepositoryProvider = Provider<ChatRepository>((ref) {
-  return ApiChatRepository(ChatApi());
+  return ApiChatRepository(ChatApi(ref.watch(apiClientProvider)));
 });
 
 final chatProvider = AsyncNotifierProvider<ChatNotifier, List<ChatMessage>>(
@@ -99,6 +100,9 @@ String _chatErrorMessage(Object error) {
   if (error is FormatException) return '챗봇 응답 형식을 확인할 수 없습니다.';
   if (error is ApiException) {
     if (error.statusCode == 400) return '질문 내용을 확인해 주세요.';
+    if (error.statusCode == 401) {
+      return '인증 정보가 만료됐거나 유효하지 않습니다.';
+    }
     if (error.statusCode == 403) return '챗봇을 이용할 권한이 없습니다.';
     if (error.statusCode == 404) return '로컬 챗봇 경로를 찾을 수 없습니다.';
     if (error.statusCode == 429) {

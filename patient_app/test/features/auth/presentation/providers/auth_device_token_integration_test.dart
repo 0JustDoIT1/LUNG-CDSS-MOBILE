@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:patient_app/core/auth/token_storage.dart';
+import 'package:patient_app/core/auth/auth_role.dart';
 import 'package:patient_app/core/network/api_client.dart';
 import 'package:patient_app/features/auth/data/auth_api.dart';
 import 'package:patient_app/features/auth/data/auth_repository.dart';
@@ -97,6 +98,9 @@ class _FakeAuthRepository extends AuthRepository {
 
   @override
   Future<bool> hasAccessToken() async => false;
+
+  @override
+  Future<AuthRole?> restoreSessionRole() async => null;
 
   @override
   Future<AuthResult> socialLogin({

@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/auth/auth_role.dart';
 import '../../../../data/models/auth_state.dart';
 import '../../../../data/repositories/mock_auth_repository.dart';
+import '../../../guardian/presentation/providers/guardian_data_provider.dart';
 import 'auth_dependency_providers.dart';
 
 final appLockRepositoryProvider = Provider<MockAuthRepository>((ref) {
@@ -27,16 +29,18 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     });
     ref.onDispose(() => _sessionExpirationSubscription?.cancel());
     deviceTokenService.start();
-    final hasAccessToken = await repository.hasAccessToken();
+    final role = await repository.restoreSessionRole();
 
-    if (hasAccessToken) {
+    if (role != null) {
       sessionCoordinator.markAuthenticated();
-      unawaited(deviceTokenService.tryRegisterCurrentDevice());
+      if (role == AuthRole.patient) {
+        unawaited(deviceTokenService.tryRegisterCurrentDevice());
+      }
       return const AuthState(
         isLoggedIn: true,
         isNewUser: false,
         isPhoneVerified: true,
-      );
+      ).copyWith(role: role);
     }
 
     return const AuthState();
@@ -46,19 +50,18 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     state = const AsyncLoading();
 
     state = await AsyncValue.guard(() async {
-      if (provider != 'google') {
-        throw UnsupportedError('$provider 로그인은 아직 연결되지 않았습니다.');
-      }
-
-      final googleSignInService = ref.read(googleSignInServiceProvider);
-
-      final idToken = await googleSignInService.signInAndGetIdToken();
+      final socialToken = switch (provider) {
+        'google' => ref.read(googleSignInServiceProvider).signInAndGetIdToken(),
+        'kakao' =>
+          ref.read(kakaoSignInServiceProvider).signInAndGetAccessToken(),
+        _ => throw UnsupportedError('$provider 로그인은 아직 연결되지 않았습니다.'),
+      };
 
       final repository = ref.read(authRepositoryProvider);
 
       final result = await repository.socialLogin(
         provider: provider,
-        token: idToken,
+        token: await socialToken,
       );
 
       if (result.isExistingMember) {
@@ -70,6 +73,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
           isLoggedIn: true,
           isNewUser: false,
           isPhoneVerified: true,
+          role: AuthRole.patient,
         );
       }
 
@@ -118,11 +122,33 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
         isLoggedIn: true,
         isNewUser: false,
         isPhoneVerified: true,
+        role: AuthRole.patient,
       );
     });
 
     state = result;
 
+    return result.hasValue;
+  }
+
+  Future<bool> registerGuardian({
+    required String inviteCode,
+    required String name,
+  }) async {
+    state = const AsyncLoading();
+    final result = await AsyncValue.guard(() async {
+      await ref
+          .read(guardianRepositoryProvider)
+          .registerGuardian(inviteCode: inviteCode, name: name);
+      ref.read(authSessionCoordinatorProvider).markAuthenticated();
+      return const AuthState(
+        isLoggedIn: true,
+        isNewUser: false,
+        isPhoneVerified: true,
+        role: AuthRole.guardian,
+      );
+    });
+    state = result;
     return result.hasValue;
   }
 

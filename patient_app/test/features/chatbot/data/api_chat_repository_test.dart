@@ -4,6 +4,7 @@ import 'package:patient_app/core/network/api_exception.dart';
 import 'package:patient_app/features/chatbot/data/api_chat_repository.dart';
 import 'package:patient_app/features/chatbot/data/chat_api.dart';
 import 'package:patient_app/features/chatbot/data/models/chat_response.dart';
+import 'package:patient_app/core/network/api_client.dart';
 
 void main() {
   test('returns the Genkit answer as an assistant message', () async {
@@ -30,7 +31,7 @@ void main() {
 }
 
 class _FakeChatApi extends ChatApi {
-  _FakeChatApi({this.error}) : super(dio: Dio());
+  _FakeChatApi({this.error}) : super(ApiClient(dio: Dio()));
 
   final Object? error;
 

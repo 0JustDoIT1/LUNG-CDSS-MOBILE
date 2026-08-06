@@ -1,3 +1,5 @@
+import '../../core/auth/auth_role.dart';
+
 class AuthState {
   const AuthState({
     this.isLoggedIn = false,
@@ -5,6 +7,7 @@ class AuthState {
     this.isPhoneVerified = false,
     this.isAppLockEnabled = false,
     this.isBiometricAuthenticated = false,
+    this.role,
   });
 
   final bool isLoggedIn;
@@ -12,6 +15,7 @@ class AuthState {
   final bool isPhoneVerified;
   final bool isAppLockEnabled;
   final bool isBiometricAuthenticated;
+  final AuthRole? role;
 
   AuthState copyWith({
     bool? isLoggedIn,
@@ -19,6 +23,7 @@ class AuthState {
     bool? isPhoneVerified,
     bool? isAppLockEnabled,
     bool? isBiometricAuthenticated,
+    AuthRole? role,
   }) {
     return AuthState(
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
@@ -27,6 +32,7 @@ class AuthState {
       isAppLockEnabled: isAppLockEnabled ?? this.isAppLockEnabled,
       isBiometricAuthenticated:
           isBiometricAuthenticated ?? this.isBiometricAuthenticated,
+      role: role ?? this.role,
     );
   }
 }

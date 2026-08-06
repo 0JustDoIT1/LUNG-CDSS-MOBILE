@@ -15,16 +15,22 @@ class MedicationAppointmentCards extends StatelessWidget {
   final HomeSummary summary;
 
   String _formatAppointmentDate(DateTime dateTime) {
-    final String month = dateTime.month.toString().padLeft(2, '0');
-    final String day = dateTime.day.toString().padLeft(2, '0');
-    final String hour = dateTime.hour.toString().padLeft(2, '0');
-    final String minute = dateTime.minute.toString().padLeft(2, '0');
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final day = dateTime.day.toString().padLeft(2, '0');
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
 
     return '${dateTime.year}.$month.$day  $hour:$minute';
   }
 
   @override
   Widget build(BuildContext context) {
+    final appointmentDateTime = summary.nextAppointmentDateTime;
+
+    final formattedDate = appointmentDateTime == null
+        ? null
+        : _formatAppointmentDate(appointmentDateTime);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -35,19 +41,23 @@ class MedicationAppointmentCards extends StatelessWidget {
         const SizedBox(height: 14),
         LayoutBuilder(
           builder: (context, constraints) {
-            final bool useColumn = constraints.maxWidth < 560;
+            final useColumn = constraints.maxWidth < 560;
+
+            final medicationCard = _MedicationCard(
+              summary: summary,
+            );
+
+            final appointmentCard = _AppointmentCard(
+              summary: summary,
+              formattedDate: formattedDate,
+            );
 
             if (useColumn) {
               return Column(
                 children: [
-                  _MedicationCard(summary: summary),
+                  medicationCard,
                   const SizedBox(height: 14),
-                  _AppointmentCard(
-                    summary: summary,
-                    formattedDate: _formatAppointmentDate(
-                      summary.nextAppointmentDateTime,
-                    ),
-                  ),
+                  appointmentCard,
                 ],
               );
             }
@@ -56,16 +66,11 @@ class MedicationAppointmentCards extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: _MedicationCard(summary: summary),
+                  child: medicationCard,
                 ),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: _AppointmentCard(
-                    summary: summary,
-                    formattedDate: _formatAppointmentDate(
-                      summary.nextAppointmentDateTime,
-                    ),
-                  ),
+                  child: appointmentCard,
                 ),
               ],
             );
@@ -85,15 +90,21 @@ class _MedicationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasMedication = summary.todayMedicationCount > 0;
+
     return _HomeInfoCard(
       icon: Icons.medication_outlined,
       title: '오늘 복약',
-      description:
-          '${summary.completedMedicationCount}/${summary.todayMedicationCount}회 복약 완료',
-      statusText: summary.completedMedicationCount ==
-              summary.todayMedicationCount
-          ? '복약완료'
-          : '복약 확인',
+      description: hasMedication
+          ? '${summary.completedMedicationCount}/'
+              '${summary.todayMedicationCount}회 복약 완료'
+          : '등록된 복약 일정이 없습니다.',
+      statusText: hasMedication
+          ? summary.completedMedicationCount >=
+                  summary.todayMedicationCount
+              ? '복약완료'
+              : '복약 확인'
+          : '일정 없음',
       onTap: () {
         context.go(RouteNames.symptoms);
       },
@@ -108,20 +119,33 @@ class _AppointmentCard extends StatelessWidget {
   });
 
   final HomeSummary summary;
-  final String formattedDate;
+  final String? formattedDate;
 
   @override
   Widget build(BuildContext context) {
+    final department = summary.nextAppointmentDepartment;
+    final doctor = summary.nextAppointmentDoctor;
+
+    final hasAppointment =
+        summary.nextAppointmentDateTime != null &&
+        department != null &&
+        department.trim().isNotEmpty &&
+        doctor != null &&
+        doctor.trim().isNotEmpty &&
+        formattedDate != null;
+
+    final description = hasAppointment
+        ? '$department · $doctor 의료진\n$formattedDate'
+        : '예정된 진료 예약이 없습니다.';
+
     return _HomeInfoCard(
       icon: Icons.calendar_month_outlined,
       title: '다음 진료 예약',
-      description:
-          '${summary.nextAppointmentDepartment} · '
-          '${summary.nextAppointmentDoctor} 의료진\n'
-          '$formattedDate',
-      statusText: summary.hasUpcomingAppointment
+      description: description,
+      statusText: hasAppointment &&
+              summary.hasUpcomingAppointment
           ? '예약예정'
-          : '일정확인',
+          : '일정 없음',
       onTap: () {
         context.go(RouteNames.appointments);
       },

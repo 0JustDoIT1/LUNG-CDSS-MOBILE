@@ -14,6 +14,7 @@ import '../../data/device_token_repository.dart';
 import '../../data/device_token_service.dart';
 import '../../data/fcm_token_source.dart';
 import '../../data/google_sign_in_service.dart';
+import '../../data/kakao_sign_in_service.dart';
 
 final tokenStorageProvider = Provider<TokenStorage>((ref) {
   return TokenStorage();
@@ -43,6 +44,10 @@ final authApiProvider = Provider<AuthApi>((ref) {
 
 final googleSignInServiceProvider = Provider<GoogleSignInService>((ref) {
   return GoogleSignInService();
+});
+
+final kakaoSignInServiceProvider = Provider<KakaoSignInService>((ref) {
+  return KakaoSignInService();
 });
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {

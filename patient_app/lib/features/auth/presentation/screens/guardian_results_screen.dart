@@ -1,77 +1,52 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../guardian/data/models/guardian_result.dart';
+import '../../../guardian/presentation/providers/guardian_data_provider.dart';
+import '../../../guardian/presentation/widgets/guardian_view_helpers.dart';
 
-class GuardianResultsScreen extends StatelessWidget {
+class GuardianResultsScreen extends ConsumerWidget {
   const GuardianResultsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedPatient = ref.watch(selectedGuardianPatientProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('검사결과'),
-      ),
+      appBar: AppBar(title: const Text('검사결과')),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            20,
-            20,
-            20,
-            40,
+        child: selectedPatient.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => _StateView(
+            message: guardianErrorMessage(error),
+            onRetry: () => ref.invalidate(guardianPatientsProvider),
           ),
-          children: [
-            Text(
-              '연동 환자의 검사결과를 읽기 전용으로 확인할 수 있습니다.',
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
+          data: (patient) {
+            if (patient == null) {
+              return const _StateView(message: '연결된 환자가 없습니다.');
+            }
+            final results = ref.watch(
+              guardianResultsProvider(patient.patientId),
+            );
+            return results.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => _StateView(
+                message: guardianErrorMessage(error),
+                onRetry: () =>
+                    ref.invalidate(guardianResultsProvider(patient.patientId)),
               ),
-            ),
-            const SizedBox(height: 20),
-
-            const _ResultCard(
-              title: '분자검사 결과',
-              status: '결과 확인 가능',
-              date: '최근 등록된 결과',
-            ),
-            const SizedBox(height: 12),
-
-            const _ResultCard(
-              title: '병리검사 결과',
-              status: '의료진 검토 완료',
-              date: '최근 등록된 결과',
-            ),
-            const SizedBox(height: 24),
-
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(
-                  alpha: 0.08,
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.info_outline_rounded,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      '보호자는 검사결과를 조회만 할 수 있으며 수정하거나 삭제할 수 없습니다.',
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                        height: 1.5,
-                      ),
+              data: (items) => items.isEmpty
+                  ? const _StateView(message: '등록된 결과가 없습니다.')
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+                      itemCount: items.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (_, index) =>
+                          _ResultCard(result: items[index]),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -79,75 +54,95 @@ class GuardianResultsScreen extends StatelessWidget {
 }
 
 class _ResultCard extends StatelessWidget {
-  const _ResultCard({
-    required this.title,
-    required this.status,
-    required this.date,
-  });
-
-  final String title;
-  final String status;
-  final String date;
+  const _ResultCard({required this.result});
+  final GuardianResult result;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: AppColors.border,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(
-                alpha: 0.1,
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: AppColors.border),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.science_outlined, color: AppColors.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                guardianSubtypeLabel(result.finalSubtype),
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(
-              Icons.science_outlined,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(width: 14),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  status,
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.primaryDark,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  date,
-                  style: AppTextStyles.bodySmall.copyWith(
+          ],
+        ),
+        if (result.genePredictions.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          ...result.genePredictions.map(
+            (prediction) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.biotech_outlined,
+                    size: 18,
                     color: AppColors.textSecondary,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      prediction.geneName,
+                      style: AppTextStyles.bodySmall,
+                    ),
+                  ),
+                  Text(
+                    prediction.likelihood == null
+                        ? '정보 없음'
+                        : '${(prediction.likelihood! * 100).toStringAsFixed(1)}%',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.primaryDark,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
-      ),
-    );
-  }
+        if (result.confirmedAt != null) ...[
+          const SizedBox(height: 10),
+          Text('확정일  ${guardianDateLabel(result.confirmedAt!)}'),
+        ],
+        if (result.releasedAt != null) ...[
+          const SizedBox(height: 6),
+          Text('공개일  ${guardianDateLabel(result.releasedAt!)}'),
+        ],
+      ],
+    ),
+  );
+}
+
+class _StateView extends StatelessWidget {
+  const _StateView({required this.message, this.onRetry});
+  final String message;
+  final VoidCallback? onRetry;
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(message, textAlign: TextAlign.center),
+        if (onRetry != null) ...[
+          const SizedBox(height: 12),
+          OutlinedButton(onPressed: onRetry, child: const Text('다시 시도')),
+        ],
+      ],
+    ),
+  );
 }

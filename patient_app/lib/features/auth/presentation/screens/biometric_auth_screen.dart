@@ -40,7 +40,15 @@ class _BiometricAuthScreenState extends ConsumerState<BiometricAuthScreen> {
       }
 
       if (isAuthenticated) {
-        context.go(RouteNames.home);
+        final authState = await ref.read(authProvider.future);
+        if (!mounted) return;
+        final homeRoute = RouteNames.homeForRole(authState.role);
+        if (homeRoute == null) {
+          await ref.read(authProvider.notifier).signOut();
+          if (mounted) context.go(RouteNames.login);
+        } else {
+          context.go(homeRoute);
+        }
         return;
       }
 
@@ -74,14 +82,9 @@ class _BiometricAuthScreenState extends ConsumerState<BiometricAuthScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 32,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 380,
-              ),
+              constraints: const BoxConstraints(maxWidth: 380),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -89,9 +92,7 @@ class _BiometricAuthScreenState extends ConsumerState<BiometricAuthScreen> {
                     width: 112,
                     height: 112,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(
-                        alpha: 0.1,
-                      ),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
