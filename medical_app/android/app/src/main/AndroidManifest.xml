@@ -30,6 +30,13 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- 채널을 지정하지 않은 FCM 메시지(백엔드가 채널 지정 안 함)가 기본으로 타는 채널.
+             fcm_service.dart의 _androidChannelId와 반드시 같은 값이어야 함 — high importance라
+             백그라운드/종료 상태에서도 헤드업(팝업)으로 뜬다. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="medical_app_default" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

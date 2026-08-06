@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../main.dart';
@@ -11,10 +12,19 @@ import '../api/device_token_api.dart';
 
 /// FCM 초기화(권한요청/토큰발급/서버등록/포그라운드알림)를 담당.
 /// 로그인 성공 직후 accessToken을 받아서 init() 호출하는 방식으로 사용.
-/// 알림 표시는 포그라운드일 땐 인앱 배너(ForegroundMessageBanner)로, 백그라운드/종료 상태일
-/// 땐 OS가 FCM notification 필드를 보고 자동으로 시스템 알림을 띄워준다 — 별도 로컬 알림 플러그인 불필요.
+/// 알림 표시는 포그라운드일 땐 인앱 배너(ForegroundMessageBanner)로, 백그라운드/종료 상태일 땐
+/// OS가 FCM notification 필드를 보고 자동으로 시스템 알림을 띄워준다.
+/// 단, 백엔드가 FCM 메시지에 채널을 지정하지 않으므로 앱이 미리 high-importance 채널을 만들어
+/// AndroidManifest의 기본 채널로 등록해둬야 배경 상태에서도 헤드업(팝업)으로 뜬다.
 class FcmService {
   static const _keyDeviceId = 'fcm.deviceId';
+
+  /// AndroidManifest.xml의 com.google.firebase.messaging.default_notification_channel_id 값과 반드시 일치해야 함.
+  static const _androidChannelId = 'medical_app_default';
+  static const _androidChannelName = '기본 알림';
+
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
 
   /// 앱이 포그라운드일 때 도착한 푸시. 화면단 배지 새로고침/상단 배너 표시용.
   /// 값이 바뀔 때마다(매 수신마다) 알림 — 상단 배너 위젯, 채팅탭/홈쉘이 구독함.
@@ -38,6 +48,7 @@ class FcmService {
       }
 
       if (!_initialized) {
+        await _setupAndroidChannel();
         _listenForegroundMessages();
         _initialized = true;
 
@@ -109,6 +120,28 @@ class FcmService {
     String hex(int start, int end) =>
         bytes.sublist(start, end).map((b) => b.toRadixString(16).padLeft(2, '0')).join();
     return '${hex(0, 4)}-${hex(4, 6)}-${hex(6, 8)}-${hex(8, 10)}-${hex(10, 16)}';
+  }
+
+  /// FCM 메시지가 채널을 지정하지 않아도 이 high-importance 채널을 기본으로 타도록
+  /// (AndroidManifest의 default_notification_channel_id 메타데이터와 짝) 미리 채널을 만들어둔다.
+  /// 주의: 안드로이드는 채널의 importance를 최초 생성 시점에 고정하므로, 이미 설치된 기기에서
+  /// 값을 바꿔도 반영되지 않는다 — 반영하려면 앱을 삭제 후 재설치해야 함.
+  Future<void> _setupAndroidChannel() async {
+    const channel = AndroidNotificationChannel(
+      _androidChannelId,
+      _androidChannelName,
+      description: '숨-잇 기본 알림 채널',
+      importance: Importance.high,
+    );
+
+    await _localNotifications.initialize(
+      const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      ),
+    );
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
   }
 
   void _listenForegroundMessages() {
