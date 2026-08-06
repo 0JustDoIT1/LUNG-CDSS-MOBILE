@@ -1,3 +1,5 @@
+import '../../core/auth/auth_role.dart';
+
 abstract final class RouteNames {
   static const String splash = '/';
   static const String login = '/login';
@@ -18,10 +20,9 @@ abstract final class RouteNames {
   static const String pinLock = '/pin-lock'; //pin 잠금
   static const String biometricAuth = '/biometric-auth'; // 생체인증
   static const String resultDetail = '/results/:resultId'; //상세 화면 라우터 연결
-  static const String symptomRecordForm = '/symptom-record'; //증상 기록 
+  static const String symptomRecordForm = '/symptom-record'; //증상 기록
   static const String symptomRecordList = '/symptom-records'; // 전체 증상 기록
-  static const String appointmentDetail =
-    '/appointments/:appointmentId'; // 예약
+  static const String appointmentDetail = '/appointments/:appointmentId'; // 예약
   static const String intakeIntro = '/intake'; // 문진
   static const String intakeFormWrite = '/intake/write'; // 문진작성
   static const String intakeCompleted = '/intake/completed'; // 문진완료
@@ -33,5 +34,13 @@ abstract final class RouteNames {
   static const String guardianLink = '/guardian-link';
   static const String guardianResults = '/guardian-results';
   static const String guardianAppointments = '/guardian-appointments';
-  static const String guardianSymptoms = '/guardian-symptoms';
+  static const String guardianMedications = '/guardian-medications';
+
+  static String? homeForRole(AuthRole? role) {
+    return switch (role) {
+      AuthRole.patient => home,
+      AuthRole.guardian => guardianHome,
+      null => null,
+    };
+  }
 }

@@ -32,7 +32,7 @@ import '../../features/auth/presentation/screens/guardian_home_screen.dart';
 import '../../features/settings/presentation/screens/guardian_link_screen.dart';
 import '../../features/auth/presentation/screens/guardian_results_screen.dart';
 import '../../features/auth/presentation/screens/guardian_appointments_screen.dart';
-import '../../features/auth/presentation/screens/guardian_symptoms_screen.dart';
+import '../../features/auth/presentation/screens/guardian_medications_screen.dart';
 
 
 
@@ -83,9 +83,9 @@ final GoRouter appRouter = GoRouter(
     ),
 
     GoRoute(
-      path: RouteNames.guardianSymptoms,
+      path: RouteNames.guardianMedications,
       builder: (context, state) {
-        return const GuardianSymptomsScreen();
+        return const GuardianMedicationsScreen();
       },
     ),
 

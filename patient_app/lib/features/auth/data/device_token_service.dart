@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../../../core/auth/token_storage.dart';
 import 'device_identity_storage.dart';
 import 'device_token_repository.dart';
@@ -27,15 +29,21 @@ class DeviceTokenService {
   void start() {
     if (_refreshSubscription != null || _platform == null) return;
     _refreshSubscription = _tokenSource.onTokenRefresh.listen(
-      (token) => unawaited(tryRegisterToken(token)),
-      onError: (_) {},
+      (token) {
+        debugPrint('[DeviceToken] FCM token refreshed; registering device');
+        unawaited(tryRegisterToken(token));
+      },
+      onError: (Object error) {
+        debugPrint('[DeviceToken] FCM token refresh stream failed: $error');
+      },
     );
   }
 
   Future<bool> tryRegisterCurrentDevice() async {
     try {
       return await registerCurrentDevice();
-    } catch (_) {
+    } catch (error) {
+      debugPrint('[DeviceToken] Current device registration failed: $error');
       return false;
     }
   }
@@ -51,7 +59,8 @@ class DeviceTokenService {
     try {
       if (_platform == null || !await _hasAccessToken()) return false;
       return await registerToken(token);
-    } catch (_) {
+    } catch (error) {
+      debugPrint('[DeviceToken] Refreshed token registration failed: $error');
       return false;
     }
   }

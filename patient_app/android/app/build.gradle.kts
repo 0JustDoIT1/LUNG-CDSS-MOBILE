@@ -1,9 +1,22 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
 }
+
+val dartDefines = providers.gradleProperty("dart-defines").orNull
+    ?.split(",")
+    ?.mapNotNull { encoded ->
+        val decoded = String(Base64.getDecoder().decode(encoded))
+        val separator = decoded.indexOf('=')
+        if (separator <= 0) null
+        else decoded.substring(0, separator) to decoded.substring(separator + 1)
+    }
+    ?.toMap()
+    .orEmpty()
 
 android {
     namespace = "com.lungcdss.patient"
@@ -25,6 +38,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] =
+            dartDefines["KAKAO_NATIVE_APP_KEY"].orEmpty()
     }
 
     buildTypes {

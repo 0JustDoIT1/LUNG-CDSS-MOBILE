@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../convenience/data/notification_deep_link_coordinator.dart';
 import '../../../convenience/presentation/providers/notification_deep_link_provider.dart';
+import '../../data/kakao_sign_in_service.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -38,12 +40,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final authAsync = ref.read(authProvider);
 
     if (authAsync.hasError) {
+      if (authAsync.error is SocialLoginCancelledException) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            authAsync.error?.toString() ?? '로그인에 실패했습니다. 다시 시도해주세요.',
-          ),
-        ),
+        SnackBar(content: Text(_socialLoginErrorMessage(authAsync.error))),
       );
       return;
     }
@@ -67,6 +68,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (authState.isNewUser) {
       context.go(RouteNames.phoneVerification);
     }
+  }
+
+  String _socialLoginErrorMessage(Object? error) {
+    if (error is KakaoLoginConfigurationException) {
+      return '카카오 로그인 설정을 확인해주세요.';
+    }
+    if (error is KakaoLoginFailedException) {
+      return '카카오 로그인에 실패했습니다. 네트워크 연결과 앱 설정을 확인해주세요.';
+    }
+    if (error is StateError) {
+      return '소셜 로그인 토큰을 확인할 수 없습니다.';
+    }
+    if (error is UnsupportedError) {
+      return error.message?.toString() ?? '지원하지 않는 로그인 방식입니다.';
+    }
+    if (error is ApiException) {
+      if (error.statusCode == 400) return '소셜 로그인 정보를 확인해주세요.';
+      if (error.statusCode == 401) return '소셜 로그인 인증이 유효하지 않습니다.';
+      if (error.statusCode == 500 || error.statusCode == 503) {
+        return '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+      }
+      if (error.code == 'TIMEOUT') return '서버 응답 시간이 초과되었습니다.';
+      if (error.code == 'CONNECTION_ERROR') {
+        return '네트워크 연결을 확인해주세요.';
+      }
+    }
+    return '로그인에 실패했습니다. 다시 시도해주세요.';
   }
 
   @override

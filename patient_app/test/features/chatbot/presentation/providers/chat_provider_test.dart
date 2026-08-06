@@ -95,7 +95,11 @@ void main() {
       message: '질문 내용을 확인해 주세요.',
     ),
     (
-      error: ApiException(message: 'failed', statusCode: 500),
+      error: ApiException(message: 'failed', statusCode: 401),
+      message: '인증 정보가 만료됐거나 유효하지 않습니다.',
+    ),
+    (
+      error: ApiException(message: 'failed', statusCode: 502),
       message: '답변을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.',
     ),
   ]) {

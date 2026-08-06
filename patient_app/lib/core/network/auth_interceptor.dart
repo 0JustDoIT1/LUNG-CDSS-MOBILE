@@ -15,6 +15,7 @@ class AuthInterceptor extends Interceptor {
   static const _logoutPath = '/api/auth/logout/';
   static const _socialLoginPath = '/api/auth/patient/social-login/';
   static const _registerPath = '/api/auth/patient/register/';
+  static const _guardianRegisterPath = '/api/auth/guardian/register/';
   static const _retryKey = 'authRetryAttempted';
 
   final TokenStorage _tokenStorage;
@@ -160,7 +161,8 @@ class AuthInterceptor extends Interceptor {
   bool _isUnauthenticatedPath(String path) {
     return path == _refreshPath ||
         path == _socialLoginPath ||
-        path == _registerPath;
+        path == _registerPath ||
+        path == _guardianRegisterPath;
   }
 
   bool _mustExpireWithoutRefresh(RequestOptions request) {

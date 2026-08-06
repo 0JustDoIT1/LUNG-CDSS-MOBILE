@@ -1,92 +1,61 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/core/network/api_client.dart';
 import 'package:patient_app/core/network/api_exception.dart';
 import 'package:patient_app/features/chatbot/data/chat_api.dart';
 
 void main() {
-  test('posts only data.message and parses result.answer', () async {
-    final recorder = _RecordingInterceptor(
-      responseData: <String, dynamic>{
-        'result': <String, dynamic>{'answer': ' Gemini 응답 '},
-      },
-    );
-    final dio = Dio()..interceptors.add(recorder);
+  test(
+    'posts only the trimmed message to /ai/chat and parses answer',
+    () async {
+      final client = _FakeApiClient(responseData: {'answer': ' 서버 응답 '});
 
-    final response = await ChatApi(dio: dio).sendMessage(' 질문 ');
+      final response = await ChatApi(client).sendMessage(' 질문 ');
 
-    expect(recorder.path, '/patientChatFlow');
-    expect(recorder.method, 'POST');
-    expect(recorder.data, <String, dynamic>{
-      'data': <String, dynamic>{'message': '질문'},
-    });
-    expect(recorder.headers.containsKey('Authorization'), isFalse);
-    expect(response.answer, 'Gemini 응답');
-  });
+      expect(client.path, '/ai/chat');
+      expect(client.data, <String, dynamic>{'message': '질문'});
+      expect((client.data! as Map<String, dynamic>).keys, ['message']);
+      expect(response.answer, '서버 응답');
+    },
+  );
 
   test('rejects a non-object response', () async {
-    final dio = Dio()
-      ..interceptors.add(_RecordingInterceptor(responseData: <dynamic>[]));
     await expectLater(
-      ChatApi(dio: dio).sendMessage('질문'),
+      ChatApi(_FakeApiClient(responseData: <dynamic>[])).sendMessage('질문'),
       throwsFormatException,
     );
   });
 
-  test('maps connection errors without exposing the Dio exception', () async {
-    final dio = Dio()
-      ..interceptors.add(
-        _RecordingInterceptor(errorType: DioExceptionType.connectionError),
-      );
-
+  test('preserves ApiException from the shared ApiClient', () async {
+    const error = ApiException(message: 'failed', statusCode: 401);
     await expectLater(
-      ChatApi(dio: dio).sendMessage('질문'),
-      throwsA(
-        isA<ApiException>().having(
-          (error) => error.code,
-          'code',
-          'CONNECTION_ERROR',
-        ),
-      ),
-    );
-  });
-
-  test('maps timeout errors', () async {
-    final dio = Dio()
-      ..interceptors.add(
-        _RecordingInterceptor(errorType: DioExceptionType.receiveTimeout),
-      );
-
-    await expectLater(
-      ChatApi(dio: dio).sendMessage('질문'),
-      throwsA(
-        isA<ApiException>().having((error) => error.code, 'code', 'TIMEOUT'),
-      ),
+      ChatApi(_FakeApiClient(error: error)).sendMessage('질문'),
+      throwsA(same(error)),
     );
   });
 }
 
-class _RecordingInterceptor extends Interceptor {
-  _RecordingInterceptor({this.responseData, this.errorType});
+class _FakeApiClient extends ApiClient {
+  _FakeApiClient({this.responseData, this.error}) : super(dio: Dio());
 
   final Object? responseData;
-  final DioExceptionType? errorType;
+  final Object? error;
   String? path;
-  String? method;
   Object? data;
-  Map<String, dynamic> headers = <String, dynamic>{};
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    path = options.path;
-    method = options.method;
-    data = options.data;
-    headers = Map<String, dynamic>.from(options.headers);
-    if (errorType != null) {
-      handler.reject(DioException(requestOptions: options, type: errorType!));
-      return;
-    }
-    handler.resolve(
-      Response<dynamic>(data: responseData, requestOptions: options),
+  Future<Response<T>> post<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) async {
+    this.path = path;
+    this.data = data;
+    if (error != null) throw error!;
+    return Response<T>(
+      data: responseData as T?,
+      requestOptions: RequestOptions(path: path),
     );
   }
 }

@@ -67,11 +67,23 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
       return;
     }
 
+    final homeRoute = RouteNames.homeForRole(authState.role);
+    if (homeRoute == null) {
+      await ref.read(authProvider.notifier).signOut();
+      if (mounted) context.go(RouteNames.login);
+      return;
+    }
+
+    if (homeRoute == RouteNames.guardianHome) {
+      context.go(homeRoute);
+      return;
+    }
+
     final navigationResult = ref
         .read(notificationDeepLinkCoordinatorProvider)
         .activateAndHandlePending();
     if (navigationResult != NotificationNavigationResult.navigated) {
-      context.go(RouteNames.home);
+      context.go(homeRoute);
     }
   }
 

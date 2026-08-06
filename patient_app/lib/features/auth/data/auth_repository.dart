@@ -1,4 +1,5 @@
 import '../../../core/auth/token_storage.dart';
+import '../../../core/auth/auth_role.dart';
 import 'auth_api.dart';
 import 'models/auth_result.dart';
 import 'models/hospital.dart';
@@ -21,9 +22,10 @@ class AuthRepository {
     final result = AuthResult.fromJson(json);
 
     if (result.isExistingMember) {
-      await _tokenStorage.saveTokens(
+      await _tokenStorage.saveSession(
         accessToken: result.accessToken!,
         refreshToken: result.refreshToken!,
+        role: AuthRole.patient,
       );
 
       await _tokenStorage.deleteSignupToken();
@@ -75,9 +77,10 @@ class AuthRepository {
       throw const FormatException('회원가입 응답에 access 또는 refresh 토큰이 없습니다.');
     }
 
-    await _tokenStorage.saveTokens(
+    await _tokenStorage.saveSession(
       accessToken: result.accessToken!,
       refreshToken: result.refreshToken!,
+      role: AuthRole.patient,
     );
 
     await _tokenStorage.deleteSignupToken();
@@ -106,15 +109,26 @@ class AuthRepository {
   }
 
   Future<bool> hasAccessToken() async {
+    return await restoreSessionRole() != null;
+  }
+
+  Future<AuthRole?> restoreSessionRole() async {
     final accessToken = await _tokenStorage.readAccessToken();
     final refreshToken = await _tokenStorage.readRefreshToken();
+    final role = await _tokenStorage.readRole();
     final hasAccess = accessToken != null && accessToken.isNotEmpty;
     final hasRefresh = refreshToken != null && refreshToken.isNotEmpty;
+    if (!hasAccess || !hasRefresh || role == null) {
+      if (hasAccess || hasRefresh || role != null) {
+        await _tokenStorage.clearAuthTokens();
+      }
+      return null;
+    }
     if (hasAccess != hasRefresh) {
       await _tokenStorage.clearAuthTokens();
-      return false;
+      return null;
     }
-    return hasAccess && hasRefresh;
+    return role;
   }
 
   Future<void> logout() async {

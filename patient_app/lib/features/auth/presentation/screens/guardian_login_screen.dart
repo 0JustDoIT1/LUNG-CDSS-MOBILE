@@ -5,21 +5,19 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/routes/route_names.dart';
-import '../../../../features/settings/presentation/providers/guardian_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-
+import '../providers/auth_provider.dart';
+import '../../../guardian/presentation/guardian_auth_error_message.dart';
 
 class GuardianLoginScreen extends ConsumerStatefulWidget {
   const GuardianLoginScreen({super.key});
 
   @override
   ConsumerState<GuardianLoginScreen> createState() =>
-    _GuardianLoginScreenState();
+      _GuardianLoginScreenState();
 }
 
-class _GuardianLoginScreenState
-    extends ConsumerState<GuardianLoginScreen> {
+class _GuardianLoginScreenState extends ConsumerState<GuardianLoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
   final _nameController = TextEditingController();
@@ -42,50 +40,30 @@ class _GuardianLoginScreenState
       _isLoading = true;
     });
 
-    await Future<void>.delayed(
-      const Duration(milliseconds: 500),
-    );
-
-    if (!mounted) {
-      return;
-    }
-
     final code = _codeController.text.trim().toUpperCase();
     final name = _nameController.text.trim();
 
-    final isValid = ref
-        .read(guardianProvider.notifier)
-        .validateInviteCode(code);
+    final success = await ref
+        .read(authProvider.notifier)
+        .registerGuardian(inviteCode: code, name: name);
 
-    if (!isValid) {
-      setState(() {
-        _isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '유효하지 않거나 만료된 보호자 코드입니다.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    ref.read(guardianProvider.notifier).registerGuardian(
-          name: name,
-          patientName: '연동 환자',
-        );
+    if (!mounted) return;
 
     setState(() {
       _isLoading = false;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('보호자 연동이 완료되었습니다.'),
-      ),
-    );
+    if (!success) {
+      final error = ref.read(authProvider).error;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(guardianRegistrationErrorMessage(error))),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('보호자 연동이 완료되었습니다.')));
 
     context.go(RouteNames.guardianHome);
   }
@@ -93,33 +71,23 @@ class _GuardianLoginScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('보호자 로그인'),
-      ),
+      appBar: AppBar(title: const Text('보호자 로그인')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 32,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 420,
-              ),
+              constraints: const BoxConstraints(maxWidth: 420),
               child: Form(
                 key: _formKey,
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Container(
                       width: 72,
                       height: 72,
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(
-                          alpha: 0.12,
-                        ),
+                        color: AppColors.primary.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -155,8 +123,7 @@ class _GuardianLoginScreenState
                     TextFormField(
                       controller: _codeController,
                       maxLength: 6,
-                      textCapitalization:
-                          TextCapitalization.characters,
+                      textCapitalization: TextCapitalization.characters,
                       decoration: const InputDecoration(
                         hintText: '예: 3F9K2A',
                         counterText: '',
@@ -186,12 +153,9 @@ class _GuardianLoginScreenState
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _nameController,
-                      decoration: const InputDecoration(
-                        hintText: '이름을 입력해주세요',
-                      ),
+                      decoration: const InputDecoration(hintText: '이름을 입력해주세요'),
                       validator: (value) {
-                        if (value == null ||
-                            value.trim().isEmpty) {
+                        if (value == null || value.trim().isEmpty) {
                           return '보호자 이름을 입력해주세요.';
                         }
 
@@ -203,8 +167,7 @@ class _GuardianLoginScreenState
                     AppButton(
                       text: '등록하기',
                       isLoading: _isLoading,
-                      onPressed:
-                          _isLoading ? null : _submit,
+                      onPressed: _isLoading ? null : _submit,
                     ),
                   ],
                 ),

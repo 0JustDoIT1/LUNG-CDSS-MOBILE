@@ -12,18 +12,18 @@ class HomeSummary {
     required this.unreadNotificationCount,
   });
 
-  final String latestTestTitle;
-  final DateTime latestTestDate;
-  final String latestTestStatus;
+  final String? latestTestTitle;
+  final DateTime? latestTestDate;
+  final String? latestTestStatus;
 
   final int todayMedicationCount;
   final int completedMedicationCount;
 
   final bool hasSymptomRecordToday;
 
-  final String nextAppointmentDepartment;
-  final String nextAppointmentDoctor;
-  final DateTime nextAppointmentDateTime;
+  final String? nextAppointmentDepartment;
+  final String? nextAppointmentDoctor;
+  final DateTime? nextAppointmentDateTime;
 
   final int unreadNotificationCount;
 
@@ -35,40 +35,52 @@ class HomeSummary {
     return completedMedicationCount / todayMedicationCount;
   }
 
+  bool get hasLatestTest {
+    return latestTestTitle != null &&
+        latestTestTitle!.trim().isNotEmpty &&
+        latestTestDate != null;
+  }
+
   bool get hasUpcomingAppointment {
-    return nextAppointmentDateTime.isAfter(DateTime.now());
+    final appointmentDateTime = nextAppointmentDateTime;
+
+    if (appointmentDateTime == null) {
+      return false;
+    }
+
+    return appointmentDateTime.isAfter(DateTime.now());
   }
 
   HomeSummary copyWith({
-  String? latestTestTitle,
-  DateTime? latestTestDate,
-  String? latestTestStatus,
-  int? todayMedicationCount,
-  int? completedMedicationCount,
-  bool? hasSymptomRecordToday,
-  String? nextAppointmentDepartment,
-  String? nextAppointmentDoctor,
-  DateTime? nextAppointmentDateTime,
-  int? unreadNotificationCount,
-}) {
-  return HomeSummary(
-    latestTestTitle: latestTestTitle ?? this.latestTestTitle,
-    latestTestDate: latestTestDate ?? this.latestTestDate,
-    latestTestStatus: latestTestStatus ?? this.latestTestStatus,
-    todayMedicationCount:
-        todayMedicationCount ?? this.todayMedicationCount,
-    completedMedicationCount:
-        completedMedicationCount ?? this.completedMedicationCount,
-    hasSymptomRecordToday:
-        hasSymptomRecordToday ?? this.hasSymptomRecordToday,
-    nextAppointmentDepartment:
-        nextAppointmentDepartment ?? this.nextAppointmentDepartment,
-    nextAppointmentDoctor:
-        nextAppointmentDoctor ?? this.nextAppointmentDoctor,
-    nextAppointmentDateTime:
-        nextAppointmentDateTime ?? this.nextAppointmentDateTime,
-    unreadNotificationCount:
-        unreadNotificationCount ?? this.unreadNotificationCount,
-  );
-}
+    String? latestTestTitle,
+    DateTime? latestTestDate,
+    String? latestTestStatus,
+    int? todayMedicationCount,
+    int? completedMedicationCount,
+    bool? hasSymptomRecordToday,
+    String? nextAppointmentDepartment,
+    String? nextAppointmentDoctor,
+    DateTime? nextAppointmentDateTime,
+    int? unreadNotificationCount,
+  }) {
+    return HomeSummary(
+      latestTestTitle: latestTestTitle ?? this.latestTestTitle,
+      latestTestDate: latestTestDate ?? this.latestTestDate,
+      latestTestStatus: latestTestStatus ?? this.latestTestStatus,
+      todayMedicationCount:
+          todayMedicationCount ?? this.todayMedicationCount,
+      completedMedicationCount:
+          completedMedicationCount ?? this.completedMedicationCount,
+      hasSymptomRecordToday:
+          hasSymptomRecordToday ?? this.hasSymptomRecordToday,
+      nextAppointmentDepartment:
+          nextAppointmentDepartment ?? this.nextAppointmentDepartment,
+      nextAppointmentDoctor:
+          nextAppointmentDoctor ?? this.nextAppointmentDoctor,
+      nextAppointmentDateTime:
+          nextAppointmentDateTime ?? this.nextAppointmentDateTime,
+      unreadNotificationCount:
+          unreadNotificationCount ?? this.unreadNotificationCount,
+    );
+  }
 }

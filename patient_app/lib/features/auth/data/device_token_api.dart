@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../../core/network/api_client.dart';
 import 'models/device_token_registration.dart';
 
@@ -7,9 +9,14 @@ class DeviceTokenApi {
   final ApiClient _apiClient;
 
   Future<void> registerDeviceToken(DeviceTokenRegistration registration) async {
-    await _apiClient.post<void>(
+    debugPrint('[DeviceToken] POST /api/auth/device-token/ started');
+    final response = await _apiClient.post<void>(
       '/api/auth/device-token/',
       data: registration.toJson(),
+    );
+    debugPrint(
+      '[DeviceToken] POST /api/auth/device-token/ '
+      'status=${response.statusCode}',
     );
   }
 
