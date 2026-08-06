@@ -187,81 +187,131 @@ class _RequestQueueViewState extends State<_RequestQueueView> {
 
     final requests = _appointments ?? [];
     if (requests.isEmpty) {
-      return const Center(child: Text('대기 중인 예약요청이 없어요'));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.event_available_rounded, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            Text(
+              '대기 중인 예약요청이 없어요',
+              style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      );
     }
 
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         itemCount: requests.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final r = requests[index];
           final colorScheme = Theme.of(context).colorScheme;
-          return Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(r.patientName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                    const SizedBox(width: 8),
-                    Text(
-                      '신청 ${_fmtRequestedAt(r.createdAt)}',
-                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${r.department} · ${r.doctorName}',
-                  style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '예약 일정',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: colorScheme.onSurface),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${_fmtDate(r.requestedAtSlot)} ${_fmtTime(r.requestedAtSlot)}',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ActionButton(
-                        label: '승인',
-                        color: Colors.lightGreen.shade700,
-                        onTap: () => _approve(r),
+          return Material(
+            color: Colors.white,
+            elevation: 2,
+            shadowColor: Colors.black.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.gradientStart.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.person_rounded, size: 18, color: AppTheme.gradientStart),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            r.patientName,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _ActionButton(
-                        label: '반려',
-                        color: Colors.red.shade600,
-                        onTap: () => _reject(r),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '신청 ${_fmtRequestedAt(r.createdAt)}',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: colorScheme.onSurfaceVariant),
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.local_hospital_outlined, size: 14, color: colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${r.department} · ${r.doctorName}',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                     ),
-                  ],
-                ),
-              ],
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today_rounded, size: 16, color: AppTheme.gradientEnd),
+                        const SizedBox(width: 8),
+                        const Text(
+                          '희망 예약일',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${_fmtDate(r.requestedAtSlot)} ${_fmtTime(r.requestedAtSlot)}',
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.gradientEnd),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ActionButton(
+                          label: '승인',
+                          color: const Color(0xff2E7D32),
+                          onTap: () => _approve(r),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _ActionButton(
+                          label: '반려',
+                          color: const Color(0xffD32F2F),
+                          onTap: () => _reject(r),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -391,14 +441,19 @@ class _TodayVisitsViewState extends State<_TodayVisitsView> {
         .toList();
     final List<Appointment> done = all.where((a) => !pending.contains(a)).toList();
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     return DefaultTabController(
       length: 2,
       child: Column(
         children: [
           TabBar(
             labelColor: AppTheme.gradientEnd,
-            unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
+            unselectedLabelColor: colorScheme.onSurfaceVariant,
             indicatorColor: AppTheme.gradientEnd,
+            indicatorWeight: 3,
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
             tabs: [
               Tab(text: '대기중 (${pending.length})'),
               Tab(text: '처리완료 (${done.length})'),
@@ -445,14 +500,21 @@ class _AppointmentList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (appointments.isEmpty) {
       return Center(
-        child: Text(emptyText, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.assignment_turned_in_outlined, size: 44, color: Colors.grey.shade400),
+            const SizedBox(height: 10),
+            Text(emptyText, style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ],
+        ),
       );
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       itemCount: appointments.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         return _AppointmentRow(
           appointment: appointments[index],
@@ -486,49 +548,66 @@ class _AppointmentRow extends StatelessWidget {
 
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(appointment.patientName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text(time, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-              ],
+    return Material(
+      color: Colors.white,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    appointment.patientName,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.access_time_rounded, size: 13, color: colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 4),
+                      Text(
+                        time,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          if (isPending)
-            _StatusPill(
-              label: '방문처리',
-              color: Colors.lightBlue.shade700,
-              filled: true,
-              onTap: () => onCheckIn(appointment),
-            )
-          else if (appointment.status == AppointmentStatus.checkedIn ||
-              appointment.status == AppointmentStatus.completed)
-            _StatusPill(label: '방문완료', color: Colors.green.shade700, filled: false, onTap: null)
-          else if (appointment.status == AppointmentStatus.noShow)
-            _StatusPill(label: '미방문', color: Colors.red.shade700, filled: false, onTap: null)
-          else
-            _StatusPill(label: '취소됨', color: colorScheme.onSurfaceVariant, filled: false, onTap: null),
-          if (isPending) ...[
-            const SizedBox(width: 6),
-            _StatusPill(
-              label: '미방문처리',
-              color: Colors.red.shade600,
-              filled: true,
-              onTap: () => onNoShow(appointment),
-            ),
+            if (isPending)
+              _StatusPill(
+                label: '방문처리',
+                color: const Color(0xff0288D1),
+                filled: true,
+                onTap: () => onCheckIn(appointment),
+              )
+            else if (appointment.status == AppointmentStatus.checkedIn ||
+                appointment.status == AppointmentStatus.completed)
+              _StatusPill(label: '방문완료', color: const Color(0xff2E7D32), filled: false, onTap: null)
+            else if (appointment.status == AppointmentStatus.noShow)
+              _StatusPill(label: '미방문', color: const Color(0xffD32F2F), filled: false, onTap: null)
+            else
+              _StatusPill(label: '취소됨', color: colorScheme.onSurfaceVariant, filled: false, onTap: null),
+            if (isPending) ...[
+              const SizedBox(width: 8),
+              _StatusPill(
+                label: '미방문',
+                color: const Color(0xffD32F2F),
+                filled: true,
+                onTap: () => onNoShow(appointment),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -566,19 +645,29 @@ class _StatusPillState extends State<_StatusPill> {
       onTapDown: widget.onTap == null ? null : (_) => setState(() => _isPressed = true),
       onTapUp: widget.onTap == null ? null : (_) => setState(() => _isPressed = false),
       onTapCancel: () => setState(() => _isPressed = false),
-      child: Container(
-        width: 88,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        width: 80,
         padding: const EdgeInsets.symmetric(vertical: 8),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: widget.filled && widget.onTap != null
+              ? [
+                  BoxShadow(
+                    color: widget.color.withValues(alpha: 0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  )
+                ]
+              : null,
         ),
         child: Text(
           widget.label,
           style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
             color: widget.filled ? Colors.white : widget.color,
           ),
         ),
@@ -614,18 +703,25 @@ class _ActionButtonState extends State<_ActionButton> {
       onTapCancel: () => setState(() => _isPressed = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: widget.color.withValues(alpha: 0.25),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         alignment: Alignment.center,
         child: Text(
           widget.label,
           style: const TextStyle(
             color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
           ),
         ),
       ),

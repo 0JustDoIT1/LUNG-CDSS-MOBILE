@@ -8,7 +8,6 @@ import '../../../../core/api/auth_api.dart';
 import '../../../../core/api/medications_api.dart';
 import '../../../../core/api/symptoms_api.dart';
 import '../../../../core/auth/session_controller.dart';
-import '../../../../core/theme/app_theme.dart';
 import '../../../../main.dart';
 import '../../models/reservation.dart';
 import '../care_plan_medication_screen.dart';
@@ -50,7 +49,7 @@ class _NurseHomeTabState extends State<NurseHomeTab> {
     super.dispose();
   }
 
-Future<void> _loadRisk() async {
+  Future<void> _loadRisk() async {
     final token = context.read<SessionController>().accessToken;
     if (token == null) return;
     try {
@@ -111,7 +110,7 @@ Future<void> _loadRisk() async {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _GreetingHeader(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             _SummaryRow(
               pendingRequestCount: _queue.length,
               unprocessedTodayCount: _unprocessedTodayVisits.length,
@@ -121,12 +120,63 @@ Future<void> _loadRisk() async {
             _NextVisitCard(appointment: _nextVisit),
             const SizedBox(height: 24),
             
-            _SectionTitle('케어플랜 처리 필요'),
-            const SizedBox(height: 8),
+            /// 의료진이 가장 먼저 주시해야 하는 [이상 신호] 섹션
+            _SectionTitle(
+              '담당환자 이상 신호',
+              count: _riskChecks.length,
+              badgeColor: Colors.red.shade600,
+            ),
+            const SizedBox(height: 10),
+            if (_riskChecks.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle_outline_rounded, color: Colors.green.shade600, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '현재 확인이 필요한 위험 신호가 없습니다',
+                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ..._riskChecks.take(3).map((c) => _AlertPatientTile(check: c)),
+            const SizedBox(height: 24),
+
+            /// 케어플랜 처리 필요 섹션
+            _SectionTitle(
+              '케어플랜 처리 필요',
+              count: _pendingSetup.length,
+              badgeColor: const Color(0xFF2B78D4),
+            ),
+            const SizedBox(height: 10),
             if (_pendingSetup.isEmpty)
-              Text(
-                '복약설정이 필요한 환자가 없어요',
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.assignment_turned_in_outlined, color: Colors.blue.shade600, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '복약설정이 필요한 환자가 없습니다',
+                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
               )
             else
               ..._pendingSetup.map((p) => _CarePlanTile(
@@ -135,16 +185,6 @@ Future<void> _loadRisk() async {
                     patientId: p.id,
                     onReturn: _loadRisk,
                   )),
-            const SizedBox(height: 24),
-            _SectionTitle('담당환자 이상 신호'),
-            const SizedBox(height: 8),
-            if (_riskChecks.isEmpty)
-              Text(
-                '현재 확인이 필요한 위험 신호가 없어요',
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-              )
-            else
-              ..._riskChecks.take(3).map((c) => _AlertPatientTile(check: c)),
           ],
         ),
       ),
@@ -152,22 +192,82 @@ Future<void> _loadRisk() async {
   }
 }
 
+/// 🎨 [수정] 상단 인사말 헤더 꾸미기 (간호사님 뱃지 포함)
 class _GreetingHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '박간호사님',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '오늘의 예약요청·케어플랜 현황',
-          style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2B78D4).withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF2B78D4).withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2B78D4),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF2B78D4).withValues(alpha: 0.3),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.local_hospital_rounded, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      '박간호사님',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.5,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF26B2C8),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        '호흡기내과',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '오늘의 예약요청·케어플랜 현황입니다',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -191,6 +291,7 @@ class _SummaryRow extends StatelessWidget {
           child: _SummaryCard(
             title: '예약요청 대기',
             value: '$pendingRequestCount건',
+            icon: Icons.pending_actions_rounded,
             highlighted: pendingRequestCount > 0,
             onTap: () => onNavigateToTab(0), // 예약관리 탭
           ),
@@ -200,6 +301,7 @@ class _SummaryRow extends StatelessWidget {
           child: _SummaryCard(
             title: '미방문/방문처리',
             value: '$unprocessedTodayCount건',
+            icon: Icons.calendar_today_rounded,
             highlighted: false,
             onTap: () => onNavigateToTab(0), // 예약관리 탭
           ),
@@ -209,64 +311,106 @@ class _SummaryRow extends StatelessWidget {
   }
 }
 
+/// 상단 요약 카드 (Colors.slateBg 에러 수정 완료)
 class _SummaryCard extends StatelessWidget {
   final String title;
   final String value;
+  final IconData icon;
   final bool highlighted;
   final VoidCallback onTap;
 
   const _SummaryCard({
     required this.title,
     required this.value,
+    required this.icon,
     required this.highlighted,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final activeColor = highlighted ? const Color(0xFF2B78D4) : Colors.grey.shade600;
+    final primaryBg = highlighted
+        ? const Color(0xFF2B78D4).withValues(alpha: 0.08)
+        : Colors.white;
 
-    return Material(
-      color: highlighted ? Colors.orange.shade50 : colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
+        color: primaryBg,
         borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Stack(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: highlighted ? Colors.orange.shade700 : colorScheme.onSurfaceVariant,
+        border: Border.all(
+          color: highlighted
+              ? const Color(0xFF2B78D4).withValues(alpha: 0.3)
+              : Colors.grey.shade200,
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: highlighted
+                            ? const Color(0xFF2B78D4)
+                            : Colors.grey.shade100,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 18,
+                        color: highlighted ? Colors.white : Colors.grey.shade700,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: highlighted ? Colors.orange.shade800 : colorScheme.onSurface,
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: highlighted
+                          ? const Color(0xFF2B78D4)
+                          : Colors.grey.shade400,
+                      size: 20,
                     ),
-                  ),
-                ],
-              ),
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Icon(
-                  Icons.chevron_right,
-                  color: highlighted ? Colors.orange.shade300 : colorScheme.onSurfaceVariant,
-                  size: 20,
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: activeColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
+                    color: highlighted
+                        ? const Color(0xFF1E293B)
+                        : Colors.grey.shade800,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -274,6 +418,7 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
+/// 🎨 [수정] 다음 방문 예정 카드 (그라데이션 제거 + 깔끔한 레이아웃 재배치)
 class _NextVisitCard extends StatelessWidget {
   final Appointment? appointment;
 
@@ -294,111 +439,209 @@ class _NextVisitCard extends StatelessWidget {
     final a = appointment;
     const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
     String two(int n) => n.toString().padLeft(2, '0');
-    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Theme.of(context).dividerColor),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF2B78D4).withValues(alpha: 0.25), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2B78D4).withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.event_available, color: colorScheme.onSurface, size: 18),
-              const SizedBox(width: 6),
-              Text(
-                '다음 방문 예정',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: colorScheme.onSurface,
-                ),
+          /// 카드 헤더 부분
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2B78D4).withValues(alpha: 0.06),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
-              if (a != null) ...[
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.seed,
-                    borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.event_available_rounded, color: Color(0xFF2B78D4), size: 18),
+                const SizedBox(width: 8),
+                const Text(
+                  '다음 방문 예정 일정',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF2B78D4),
                   ),
-                  child: Text(
-                    _countdownLabel(a.displaySlot),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                ),
+                if (a != null) ...[
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2B78D4),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _countdownLabel(a.displaySlot),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
-          const SizedBox(height: 16),
-          if (a == null)
-            Text(
-              '오늘 남은 방문이 없어요',
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
-            )
-          else ...[
-            Text(
-              '${a.displaySlot.month}월 ${a.displaySlot.day}일 (${weekdays[a.displaySlot.weekday - 1]})',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${two(a.displaySlot.hour)}:${two(a.displaySlot.minute)}',
-              style: TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
-                height: 1.0,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '${a.patientName}님',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-                color: colorScheme.onSurface,
-              ),
-            ),
-          ],
+
+          /// 카드 내부 바디 영역 (시각, 날짜, 환자 정보 재배치)
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: a == null
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      '오늘 남은 대기 환자가 없습니다',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                  )
+                : Row(
+                    children: [
+                      /// 좌측: 시간 및 날짜 정보
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${two(a.displaySlot.hour)}:${two(a.displaySlot.minute)}',
+                              style: const TextStyle(
+                                fontSize: 34,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF0F172A),
+                                letterSpacing: -0.5,
+                                height: 1.0,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Icon(Icons.calendar_month_rounded, size: 14, color: Colors.grey.shade600),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${a.displaySlot.month}월 ${a.displaySlot.day}일 (${weekdays[a.displaySlot.weekday - 1]})',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      /// 구분선
+                      Container(
+                        height: 40,
+                        width: 1,
+                        color: Colors.grey.shade200,
+                        margin: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+
+                      /// 우측: 환자 정보 영역
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '예약 환자',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${a.patientName} 환자님',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E293B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
         ],
       ),
     );
   }
 }
 
+/// 카운터 뱃지가 결합된 섹션 타이틀
 class _SectionTitle extends StatelessWidget {
   final String text;
+  final int? count;
+  final Color badgeColor;
 
-  const _SectionTitle(this.text);
+  const _SectionTitle(this.text, {this.count, this.badgeColor = Colors.blue});
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+    return Row(
+      children: [
+        Text(
+          text,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, letterSpacing: -0.4),
+        ),
+        if (count != null && count! > 0) ...[
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: badgeColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '$count',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
 
+/// 케어플랜 처리 필요 타일
 class _CarePlanTile extends StatelessWidget {
   final String name;
   final String subtitle;
   final String? patientId; // null이면 UUID 매칭 실패 — 탭 비활성화
   final VoidCallback onReturn;
+
   const _CarePlanTile({
     required this.name,
     required this.subtitle,
@@ -409,57 +652,123 @@ class _CarePlanTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = patientId != null;
-    return GestureDetector(
-      onTap: enabled
-          ? () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => CarePlanMedicationScreen(
-                    patientId: patientId!,
-                    patientName: name,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF2B78D4).withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2B78D4).withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: enabled
+              ? () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => CarePlanMedicationScreen(
+                        patientId: patientId!,
+                        patientName: name,
+                      ),
+                    ),
+                  );
+                  onReturn(); // 스케줄이 새로 생겼을 수 있으니 목록 새로고침
+                }
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2B78D4).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.medication_liquid_rounded,
+                    color: Color(0xFF2B78D4),
+                    size: 22,
                   ),
                 ),
-              );
-              onReturn(); // 스케줄이 새로 생겼을 수 있으니 목록 새로고침
-            }
-          : null,
-      child: Opacity(
-        opacity: enabled ? 1.0 : 0.5,
-        child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.orange.shade200),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2B78D4).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              '복약 미설정',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF2B78D4),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2B78D4),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    '설정하기',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Icon(Icons.chevron_right, color: Colors.orange.shade300),
-          ],
+          ),
         ),
-      ),
       ),
     );
   }
 }
 
+/// 담당환자 이상 신호 타일 (위험 RED / 주의 YELLOW)
 class _AlertPatientTile extends StatelessWidget {
   final SymptomCheck check;
 
@@ -467,35 +776,103 @@ class _AlertPatientTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = check.isRed ? Colors.red : (check.isYellow ? Colors.orange : Colors.green);
+    final isRed = check.isRed;
+    final mainColor = isRed ? Colors.red.shade600 : Colors.orange.shade800;
+    final bgColor = isRed ? Colors.red.shade50 : Colors.orange.shade50;
+    final borderColor = isRed ? Colors.red.shade200 : Colors.orange.shade200;
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const SymptomChecksScreen()),
-        );
-      },
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 8),
-        elevation: 0,
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: ListTile(
-          leading: CircleAvatar(
-            backgroundColor: color.withValues(alpha: 0.15),
-            child: Icon(Icons.priority_high, color: color),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: mainColor.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
-          title: Text(check.patientName),
-          subtitle: Text(check.isRed ? '위험(RED) 신호 감지' : '주의(YELLOW) 신호 감지'),
-          trailing: Chip(
-            label: const Text('확인필요'),
-            backgroundColor: Colors.orange.shade50,
-            labelStyle: TextStyle(
-              color: Colors.orange.shade800,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SymptomChecksScreen()),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: mainColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isRed ? Icons.warning_amber_rounded : Icons.priority_high_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            check.patientName,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.grey.shade900,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: mainColor,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              isRed ? '위험 (RED)' : '주의 (YELLOW)',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isRed ? '증상 악화 신호 감지 · 즉시 확인 필요' : '주의 관찰 필요 신호 감지',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: mainColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16,
+                  color: mainColor,
+                ),
+              ],
             ),
-            side: BorderSide.none,
           ),
         ),
       ),

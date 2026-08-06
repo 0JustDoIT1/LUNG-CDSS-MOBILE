@@ -219,17 +219,13 @@ class _NotificationCard extends StatelessWidget {
     return Material(
       color: isUnread ? AppTheme.seed.withValues(alpha: 0.06) : colorScheme.surface,
       borderRadius: BorderRadius.circular(14),
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: 0.12),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
-        child: Container(
+        child: Padding(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isUnread ? AppTheme.seed.withValues(alpha: 0.3) : Theme.of(context).dividerColor,
-            ),
-          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

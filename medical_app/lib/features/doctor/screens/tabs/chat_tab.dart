@@ -8,6 +8,7 @@ import '../../../../core/api/communication_api.dart' as api;
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/chat/chat_room_screen.dart';
 import '../../../../core/chat/new_chat_screen.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../main.dart';
 
 /// 탭 4: 의사 채팅 목록. 실제 API(GET /api/communication/threads/) 연동됨.
@@ -194,52 +195,117 @@ class _ThreadTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: CircleAvatar(
-        radius: 24,
-        backgroundColor: colorScheme.surfaceContainerHighest,
-        child: Text(
-          thread.otherParticipantName.isNotEmpty ? thread.otherParticipantName.substring(0, 1) : '?',
-          style: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Material(
+        color: colorScheme.surfaceContainerHighest,
+        elevation: 0,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ChatRoomScreen(thread: thread),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                /// 프로필
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppTheme.seed.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    color: AppTheme.gradientEnd,
+                    size: 30,
+                  ),
+                ),
+
+                const SizedBox(width: 14),
+
+                /// 이름 + 마지막 메시지
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        thread.otherParticipantName,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+
+                      const SizedBox(height: 6),
+
+                      Text(
+                        thread.lastMessage,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                /// 시간 + 안읽음
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _timeLabel(thread.lastMessageAt),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.outline,
+                      ),
+                    ),
+
+                    if (thread.unreadCount > 0) ...[
+                      const SizedBox(height: 8),
+
+                      Container(
+                        constraints: const BoxConstraints(
+                          minWidth: 24,
+                          minHeight: 24,
+                        ),
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xffEF5350),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Text(
+                          '${thread.unreadCount}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
-      title: Text(thread.otherParticipantName, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(
-        thread.lastMessage,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: colorScheme.onSurfaceVariant),
-      ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            _timeLabel(thread.lastMessageAt),
-            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-          ),
-          if (thread.unreadCount > 0) ...[
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.red.shade500,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '${thread.unreadCount}',
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        ],
-      ),
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => ChatRoomScreen(thread: thread)),
-        );
-      },
     );
   }
 }

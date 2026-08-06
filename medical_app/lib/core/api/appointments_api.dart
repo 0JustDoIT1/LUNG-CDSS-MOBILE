@@ -46,6 +46,10 @@ Future<void> _postAction(String url, String accessToken) async {
     headers: {'Authorization': 'Bearer $accessToken'},
   );
   if (response.statusCode != 200) {
+    final body = utf8.decode(response.bodyBytes);
+    final match = RegExp(r'<pre class="exception_value">(.*?)</pre>', dotAll: true).firstMatch(body);
+    // ignore: avoid_print
+    print('❗ _postAction $url ${response.statusCode} exception: ${match?.group(1) ?? body}');
     throw ApiException('처리에 실패했어요. (${response.statusCode})');
   }
 }
@@ -71,13 +75,27 @@ Future<List<Map<String, dynamic>>> fetchMyAppointmentsRaw(String accessToken) as
   return list.cast<Map<String, dynamic>>();
 }
 
-/// POST /api/appointments/{id}/process/ — 예약요청 승인.
-Future<void> approveAppointment(String id, String accessToken) =>
-    _postAction('$apiBaseUrl/api/appointments/$id/process/', accessToken);
+/// POST /api/appointments/{id}/process/ — 예약요청 승인/반려. body에 action('approve'|'reject') 필수.
+Future<void> _postProcessAction(String id, String action, String accessToken) async {
+  final uri = Uri.parse('$apiBaseUrl/api/appointments/$id/process/');
+  final response = await http.post(
+    uri,
+    headers: {'Authorization': 'Bearer $accessToken', 'Content-Type': 'application/json'},
+    body: jsonEncode({'action': action}),
+  );
+  if (response.statusCode != 200) {
+    throw ApiException('처리에 실패했어요. (${response.statusCode})');
+  }
+}
 
-/// POST /api/appointments/{id}/cancel/ — 예약요청 반려 / 예약 취소.
+/// POST /api/appointments/{id}/process/ (action=approve) — 예약요청 승인.
+Future<void> approveAppointment(String id, String accessToken) =>
+    _postProcessAction(id, 'approve', accessToken);
+
+/// POST /api/appointments/{id}/process/ (action=reject) — 예약요청 반려.
+/// (주의: .../cancel/ 은 이 용도가 아님 — 반려 시도하면 403 남. 반려도 승인처럼 process/에 action만 다르게 보냄)
 Future<void> cancelAppointment(String id, String accessToken) =>
-    _postAction('$apiBaseUrl/api/appointments/$id/cancel/', accessToken);
+    _postProcessAction(id, 'reject', accessToken);
 
 /// POST /api/appointments/{id}/check-in/ — 방문처리.
 Future<void> checkInAppointment(String id, String accessToken) =>
