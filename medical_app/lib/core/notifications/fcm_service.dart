@@ -3,22 +3,18 @@ import 'dart:math';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../main.dart';
 import '../api/auth_api.dart';
 import '../api/device_token_api.dart';
 
-/// FCM 초기화(권한요청/토큰발급/서버등록/안드로이드채널/포그라운드알림)를 담당.
+/// FCM 초기화(권한요청/토큰발급/서버등록/포그라운드알림)를 담당.
 /// 로그인 성공 직후 accessToken을 받아서 init() 호출하는 방식으로 사용.
+/// 알림 표시는 포그라운드일 땐 인앱 배너(ForegroundMessageBanner)로, 백그라운드/종료 상태일
+/// 땐 OS가 FCM notification 필드를 보고 자동으로 시스템 알림을 띄워준다 — 별도 로컬 알림 플러그인 불필요.
 class FcmService {
   static const _keyDeviceId = 'fcm.deviceId';
-  static const _androidChannelId = 'medical_app_default';
-  static const _androidChannelName = '기본 알림';
-
-  final FlutterLocalNotificationsPlugin _localNotifications =
-      FlutterLocalNotificationsPlugin();
 
   /// 앱이 포그라운드일 때 도착한 푸시. 화면단 배지 새로고침/상단 배너 표시용.
   /// 값이 바뀔 때마다(매 수신마다) 알림 — 상단 배너 위젯, 채팅탭/홈쉘이 구독함.
@@ -42,7 +38,6 @@ class FcmService {
       }
 
       if (!_initialized) {
-        await _setupAndroidChannel();
         _listenForegroundMessages();
         _initialized = true;
 
@@ -116,52 +111,11 @@ class FcmService {
     return '${hex(0, 4)}-${hex(4, 6)}-${hex(6, 8)}-${hex(8, 10)}-${hex(10, 16)}';
   }
 
-  Future<void> _setupAndroidChannel() async {
-    const channel = AndroidNotificationChannel(
-      _androidChannelId,
-      _androidChannelName,
-      description: '숨-잇 기본 알림 채널',
-      importance: Importance.high,
-    );
-
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
-
-    const initSettings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-    );
-    await _localNotifications.initialize(
-      initSettings,
-      // 포그라운드에서 직접 띄운 로컬 알림을 탭했을 때 — payload에 deep_link를 담아 전달함
-      onDidReceiveNotificationResponse: (response) {
-        final deepLink = response.payload;
-        debugPrint('[FCM] 포그라운드 로컬 알림 탭됨 (deepLink=$deepLink)');
-        if (deepLink != null) _navigateToDeepLink(deepLink);
-      },
-    );
-  }
-
   void _listenForegroundMessages() {
     FirebaseMessaging.onMessage.listen((message) {
-      final notification = message.notification;
-      if (notification == null) return;
-
-      _localNotifications.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _androidChannelId,
-            _androidChannelName,
-            importance: Importance.high,
-            priority: Priority.high,
-          ),
-        ),
-        payload: message.data['deep_link'],
-      );
-
+      // 포그라운드에선 상단 인앱 배너(ForegroundMessageBanner)만 보여줌 — incomingMessage를
+      // 구독하는 쪽(배너, 각 탭의 새로고침)에서 처리하므로 여기선 값만 갱신.
+      if (message.notification == null) return;
       incomingMessage.value = message;
     });
   }
@@ -169,10 +123,11 @@ class FcmService {
   /// 백그라운드/종료 상태에서 알림을 탭해 앱으로 들어온 경우 data['deep_link']로 이동.
   void _handleOpenedMessage(RemoteMessage message) {
     final deepLink = message.data['deep_link'];
-    if (deepLink != null) _navigateToDeepLink(deepLink);
+    if (deepLink != null) navigateToDeepLink(deepLink);
   }
 
-  void _navigateToDeepLink(String deepLink) {
+  /// 포그라운드 인앱 배너를 탭했을 때도 동일하게 이 메서드로 이동 처리(ForegroundMessageBanner에서 호출).
+  void navigateToDeepLink(String deepLink) {
     debugPrint('[FCM] 딥링크 이동: $deepLink');
     appRouter.push(deepLink);
   }

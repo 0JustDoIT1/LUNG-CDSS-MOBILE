@@ -73,7 +73,13 @@ class _MedicalAppViewState extends State<_MedicalAppView> {
           child: Stack(
             children: [
               child!,
-              ForegroundMessageBanner(incomingMessage: fcmService.incomingMessage),
+              ForegroundMessageBanner(
+                incomingMessage: fcmService.incomingMessage,
+                onTapMessage: (message) {
+                  final deepLink = message.data['deep_link'];
+                  if (deepLink != null) fcmService.navigateToDeepLink(deepLink);
+                },
+              ),
             ],
           ),
         );

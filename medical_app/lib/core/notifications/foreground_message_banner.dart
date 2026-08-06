@@ -10,8 +10,13 @@ import '../theme/app_theme.dart';
 /// FcmService.incomingMessage를 구독해서, 지금 어떤 화면에 있든 위에 겹쳐서 보여줌.
 class ForegroundMessageBanner extends StatefulWidget {
   final ValueListenable<RemoteMessage?> incomingMessage;
+  final void Function(RemoteMessage message)? onTapMessage;
 
-  const ForegroundMessageBanner({super.key, required this.incomingMessage});
+  const ForegroundMessageBanner({
+    super.key,
+    required this.incomingMessage,
+    this.onTapMessage,
+  });
 
   @override
   State<ForegroundMessageBanner> createState() => _ForegroundMessageBannerState();
@@ -66,7 +71,11 @@ class _ForegroundMessageBannerState extends State<ForegroundMessageBanner> {
             duration: const Duration(milliseconds: 200),
             opacity: notification == null ? 0 : 1,
             child: GestureDetector(
-              onTap: _dismiss,
+              onTap: () {
+                final message = _visibleMessage;
+                _dismiss();
+                if (message != null) widget.onTapMessage?.call(message);
+              },
               onVerticalDragEnd: (_) => _dismiss(),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
