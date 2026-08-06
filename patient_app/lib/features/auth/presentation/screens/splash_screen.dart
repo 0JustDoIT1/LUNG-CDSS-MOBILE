@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/routes/route_names.dart';
+import '../providers/auth_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -31,14 +32,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       curve: Curves.easeIn,
     );
 
-    _scaleAnimation = Tween<double>(
-      begin: 0.75,
-      end: 1.0,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOutCubic,
-      ),
+    _scaleAnimation = Tween<double>(begin: 0.75, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
 
     _animationController.forward();
@@ -49,15 +44,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _checkAuthState() async {
-    await Future<void>.delayed(
-      const Duration(seconds: 4),
-    );
+    await Future<void>.delayed(const Duration(seconds: 4));
 
     if (!mounted) {
       return;
     }
 
-    context.go(RouteNames.pinLock);
+    final authState = await ref.read(authProvider.future);
+    if (!mounted) return;
+    if (!authState.isLoggedIn) {
+      context.go(RouteNames.login);
+      return;
+    }
+    if (authState.isNewUser || !authState.isPhoneVerified) {
+      context.go(RouteNames.phoneVerification);
+      return;
+    }
+    final homeRoute = RouteNames.homeForRole(authState.role);
+    context.go(homeRoute ?? RouteNames.login);
   }
 
   @override
@@ -77,11 +81,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFFFFFFF),
-              Color(0xFFF4FBFF),
-              Color(0xFFEAF7FF),
-            ],
+            colors: [Color(0xFFFFFFFF), Color(0xFFF4FBFF), Color(0xFFEAF7FF)],
           ),
         ),
         child: SafeArea(
@@ -101,8 +101,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       borderRadius: BorderRadius.circular(32),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF5AAEFF)
-                              .withValues(alpha: 0.12),
+                          color: const Color(
+                            0xFF5AAEFF,
+                          ).withValues(alpha: 0.12),
                           blurRadius: 35,
                           offset: const Offset(0, 14),
                         ),

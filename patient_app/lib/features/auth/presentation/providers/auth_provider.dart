@@ -8,7 +8,7 @@ import '../../../../data/repositories/mock_auth_repository.dart';
 import '../../../guardian/presentation/providers/guardian_data_provider.dart';
 import 'auth_dependency_providers.dart';
 
-final appLockRepositoryProvider = Provider<MockAuthRepository>((ref) {
+final biometricAuthRepositoryProvider = Provider<MockAuthRepository>((ref) {
   return MockAuthRepository();
 });
 
@@ -164,14 +164,8 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   }
 
   Future<bool> authenticateWithBiometrics() async {
-    final repository = ref.read(appLockRepositoryProvider);
+    final repository = ref.read(biometricAuthRepositoryProvider);
     return repository.authenticateWithBiometrics();
-  }
-
-  Future<bool> verifyPin({required String pin}) async {
-    final repository = ref.read(appLockRepositoryProvider);
-
-    return repository.verifyPin(pin: pin);
   }
 
   Future<void> signOut() async {

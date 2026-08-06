@@ -10,36 +10,23 @@ class MockAuthRepository implements AuthRepository {
 
   @override
   Future<AuthState> getInitialAuthState() async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 1500),
-    );
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
 
     return _state;
   }
 
   @override
-  Future<AuthState> signInWithSocial({
-    required String provider,
-  }) async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 700),
-    );
+  Future<AuthState> signInWithSocial({required String provider}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 700));
 
-    _state = _state.copyWith(
-      isLoggedIn: true,
-      isNewUser: true,
-    );
+    _state = _state.copyWith(isLoggedIn: true, isNewUser: true);
 
     return _state;
   }
 
   @override
-  Future<void> sendVerificationCode({
-    required String phoneNumber,
-  }) async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 700),
-    );
+  Future<void> sendVerificationCode({required String phoneNumber}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 700));
   }
 
   @override
@@ -47,47 +34,27 @@ class MockAuthRepository implements AuthRepository {
     required String phoneNumber,
     required String verificationCode,
   }) async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 700),
-    );
+    await Future<void>.delayed(const Duration(milliseconds: 700));
 
     if (verificationCode != '123456') {
       throw Exception('인증번호가 일치하지 않습니다.');
     }
 
-    _state = _state.copyWith(
-      isPhoneVerified: true,
-      isNewUser: false,
-    );
+    _state = _state.copyWith(isPhoneVerified: true, isNewUser: false);
 
     return _state;
   }
 
   @override
   Future<bool> authenticateWithBiometrics() async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 500),
-    );
+    await Future<void>.delayed(const Duration(milliseconds: 500));
 
     return true;
   }
 
   @override
-  Future<bool> verifyPin({
-    required String pin,
-  }) async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 500),
-    );
-
-    return pin == '1234';
-  }
-
-  @override
   Future<void> signOut() async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 300),
-    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
 
     _state = const AuthState();
   }

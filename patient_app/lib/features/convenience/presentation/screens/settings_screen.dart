@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../settings/data/models/notification_preference.dart';
@@ -32,30 +33,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _SettingsCard(
             children: [
               SwitchListTile(
-                value: securitySettings.appLockEnabled,
+                value: securitySettings.value?.appLockEnabled ?? false,
                 title: const Text('앱 잠금'),
                 subtitle: const Text('앱 실행 시 PIN 인증을 사용합니다.'),
                 secondary: const Icon(Icons.lock_outline_rounded),
-                onChanged: (value) {
-                  ref
-                      .read(securitySettingsProvider.notifier)
-                      .setAppLockEnabled(value);
-                },
+                onChanged: (value) => _changeAppLock(value),
               ),
               const Divider(height: 1),
               SwitchListTile(
-                value: securitySettings.biometricEnabled,
+                value: securitySettings.value?.biometricEnabled ?? false,
                 title: const Text('생체인증 사용'),
                 subtitle: const Text('지문 또는 얼굴 인증으로 잠금을 해제합니다.'),
                 secondary: const Icon(Icons.fingerprint_rounded),
-                onChanged: securitySettings.appLockEnabled
-                    ? (value) {
-                        ref
+                onChanged: (securitySettings.value?.appLockEnabled ?? false)
+                    ? (value) async {
+                        final saved = await ref
                             .read(securitySettingsProvider.notifier)
                             .setBiometricEnabled(value);
+                        if (!saved && mounted) {
+                          _showMessage('생체인증 설정을 저장하지 못했습니다.');
+                        }
                       }
                     : null,
               ),
+              if (securitySettings.value?.appLockEnabled ?? false) ...[
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.pin_outlined),
+                  title: const Text('PIN 변경'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: _changePin,
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 28),
@@ -95,6 +104,80 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _changeAppLock(bool enabled) async {
+    if (enabled) {
+      final success = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => const _PinSetupScreen(mode: _PinSetupMode.create),
+        ),
+      );
+      if (success != true && mounted) {
+        _showMessage('PIN 설정을 취소했습니다. 앱 잠금은 켜지지 않았습니다.');
+      }
+      return;
+    }
+
+    final pin = await _askCurrentPin();
+    if (pin == null) return;
+    final disabled = await ref
+        .read(securitySettingsProvider.notifier)
+        .disable(pin);
+    if (mounted) {
+      _showMessage(disabled ? '앱 잠금을 해제했습니다.' : 'PIN 번호가 올바르지 않습니다.');
+    }
+  }
+
+  Future<void> _changePin() async {
+    final success = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const _PinSetupScreen(mode: _PinSetupMode.change),
+      ),
+    );
+    if (success == true && mounted) _showMessage('PIN을 변경했습니다.');
+  }
+
+  Future<String?> _askCurrentPin() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('앱 잠금 해제'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          obscureText: true,
+          keyboardType: TextInputType.number,
+          maxLength: 4,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(labelText: '현재 PIN 4자리'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (controller.text.length == 4) {
+                Navigator.pop(dialogContext, controller.text);
+              }
+            },
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _buildNotificationSettings() {
@@ -285,6 +368,119 @@ class _SettingsCard extends StatelessWidget {
         side: BorderSide(color: Colors.grey.shade200),
       ),
       child: Column(children: children),
+    );
+  }
+}
+
+enum _PinSetupMode { create, change }
+
+class _PinSetupScreen extends ConsumerStatefulWidget {
+  const _PinSetupScreen({required this.mode});
+
+  final _PinSetupMode mode;
+
+  @override
+  ConsumerState<_PinSetupScreen> createState() => _PinSetupScreenState();
+}
+
+class _PinSetupScreenState extends ConsumerState<_PinSetupScreen> {
+  final _currentController = TextEditingController();
+  final _newController = TextEditingController();
+  final _confirmController = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _currentController.dispose();
+    _newController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    final newPin = _newController.text;
+    if (newPin.length != 4 || _confirmController.text.length != 4) {
+      setState(() => _error = '4자리 숫자 PIN을 입력해주세요.');
+      return;
+    }
+    if (newPin != _confirmController.text) {
+      setState(() => _error = '새 PIN 번호가 일치하지 않습니다.');
+      return;
+    }
+    if (widget.mode == _PinSetupMode.change &&
+        _currentController.text.length != 4) {
+      setState(() => _error = '현재 PIN 4자리를 입력해주세요.');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final notifier = ref.read(securitySettingsProvider.notifier);
+    final success = widget.mode == _PinSetupMode.create
+        ? await notifier.setPin(newPin)
+        : await notifier.changePin(_currentController.text, newPin);
+    if (!mounted) return;
+    if (success) {
+      Navigator.pop(context, true);
+      return;
+    }
+    setState(() {
+      _saving = false;
+      _error = widget.mode == _PinSetupMode.change
+          ? '현재 PIN이 올바르지 않거나 변경하지 못했습니다.'
+          : 'PIN을 저장하지 못했습니다. 다시 시도해주세요.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.mode == _PinSetupMode.create ? 'PIN 설정' : 'PIN 변경'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const Text('앱 잠금에 사용할 4자리 숫자 PIN을 입력해주세요.'),
+          const SizedBox(height: 24),
+          if (widget.mode == _PinSetupMode.change) ...[
+            _pinField(_currentController, '현재 PIN'),
+            const SizedBox(height: 12),
+          ],
+          _pinField(_newController, '새 PIN'),
+          const SizedBox(height: 12),
+          _pinField(_confirmController, '새 PIN 확인'),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(color: Colors.red)),
+          ],
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('저장'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pinField(TextEditingController controller, String label) {
+    return TextField(
+      controller: controller,
+      obscureText: true,
+      keyboardType: TextInputType.number,
+      maxLength: 4,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      decoration: InputDecoration(labelText: label, counterText: ''),
     );
   }
 }

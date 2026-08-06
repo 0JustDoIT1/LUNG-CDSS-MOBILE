@@ -6,6 +6,7 @@ import '../../../../app/routes/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../convenience/presentation/providers/security_settings_provider.dart';
 import '../providers/auth_provider.dart';
 
 class BiometricAuthScreen extends ConsumerStatefulWidget {
@@ -40,6 +41,7 @@ class _BiometricAuthScreenState extends ConsumerState<BiometricAuthScreen> {
       }
 
       if (isAuthenticated) {
+        ref.read(securitySettingsProvider.notifier).unlockWithBiometrics();
         final authState = await ref.read(authProvider.future);
         if (!mounted) return;
         final homeRoute = RouteNames.homeForRole(authState.role);
