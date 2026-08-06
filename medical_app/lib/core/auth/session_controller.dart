@@ -19,7 +19,6 @@ class SessionController extends ChangeNotifier {
 
   UserRole? _role;
   String? _accessToken;
-  String? _refreshToken;
   String _name = '';
   bool _isLoading = false;
 
@@ -46,7 +45,6 @@ class SessionController extends ChangeNotifier {
 
     _role = _parseRole(savedRole);
     _accessToken = prefs.getString(_keyAccessToken);
-    _refreshToken = prefs.getString(_keyRefreshToken);
     _name = prefs.getString(_keyName) ?? '';
     notifyListeners();
 
@@ -63,7 +61,6 @@ Future<bool> applyLoginResult(StaffLoginResult result) async {
 
     _role = role;
     _accessToken = result.access;
-    _refreshToken = result.refresh;
     _name = result.name;
 
     final prefs = await SharedPreferences.getInstance();
@@ -101,7 +98,6 @@ Future<bool> applyLoginResult(StaffLoginResult result) async {
   Future<void> logOut() async {
     _role = null;
     _accessToken = null;
-    _refreshToken = null;
     _name = '';
 
     final prefs = await SharedPreferences.getInstance();

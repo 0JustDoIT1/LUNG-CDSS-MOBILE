@@ -142,7 +142,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -190,6 +193,7 @@ class _DateDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
     final label = '${date.year}년 ${date.month}월 ${date.day}일 (${weekdays[date.weekday - 1]})';
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -197,12 +201,12 @@ class _DateDivider extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.grey.shade200,
+            color: colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
             label,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
           ),
         ),
       ),
@@ -245,6 +249,7 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     String two(int n) => n.toString().padLeft(2, '0');
     final timeLabel = '${two(message.createdAt.hour)}:${two(message.createdAt.minute)}';
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -255,29 +260,29 @@ class _MessageBubble extends StatelessWidget {
           if (!isMe) ...[
             CircleAvatar(
               radius: 14,
-              backgroundColor: Colors.grey.shade300,
+              backgroundColor: colorScheme.surfaceContainerHighest,
               child: Text(
                 message.senderName.isNotEmpty ? message.senderName.substring(0, 1) : '?',
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
+                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
               ),
             ),
             const SizedBox(width: 8),
           ],
           if (isMe) ...[
-            Text(timeLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+            Text(timeLabel, style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant)),
             const SizedBox(width: 6),
           ],
           Flexible(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isMe ? AppTheme.seed : Colors.grey.shade100,
+                color: isMe ? AppTheme.seed : colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: RichText(
                 text: TextSpan(
                   style: TextStyle(
-                    color: isMe ? Colors.white : Colors.black87,
+                    color: isMe ? Colors.white : colorScheme.onSurface,
                     fontSize: 14,
                   ),
                   children: _buildMentionSpans(message.content, isMe: isMe),
@@ -287,7 +292,7 @@ class _MessageBubble extends StatelessWidget {
           ),
           if (!isMe) ...[
             const SizedBox(width: 6),
-            Text(timeLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+            Text(timeLabel, style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant)),
           ],
         ],
       ),
@@ -323,7 +328,7 @@ class _MessageInputBar extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: '메시지 입력',
                 filled: true,
-                fillColor: Colors.grey.shade100,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),

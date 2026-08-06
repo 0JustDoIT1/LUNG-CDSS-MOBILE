@@ -6,13 +6,15 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'auth_api.dart';
 
 /// 채팅 스레드 하나. GET /api/communication/threads/ 응답 구조.
+/// 목록은 서버가 이미 last_message_at 최신순으로 정렬해서 줌 — 클라이언트에서 재정렬 불필요.
 class ChatThread {
   final String id;
   final String? relatedCase;
   final String otherParticipantName;
   final String lastMessage;
   final int unreadCount;
-  final DateTime createdAt;
+  final DateTime createdAt; // 스레드 생성 시각 — 메시지가 와도 안 바뀜
+  final DateTime lastMessageAt; // 최근 메시지(또는 스레드 생성) 시각 — 화면 표시용은 이걸 사용
 
   ChatThread({
     required this.id,
@@ -21,6 +23,7 @@ class ChatThread {
     required this.lastMessage,
     required this.unreadCount,
     required this.createdAt,
+    required this.lastMessageAt,
   });
 
   factory ChatThread.fromJson(Map<String, dynamic> json) {
@@ -32,6 +35,9 @@ class ChatThread {
       // 문서상 타입이 string으로 나와서 안전하게 파싱
       unreadCount: int.tryParse('${json['unread_count']}') ?? 0,
       createdAt: DateTime.parse(json['created_at'] as String),
+      lastMessageAt: DateTime.parse(
+        json['last_message_at'] as String? ?? json['created_at'] as String,
+      ),
     );
   }
 }
@@ -52,6 +58,10 @@ Future<List<T>> _fetchList<T>(
   }
 
   if (response.statusCode != 200) {
+    final body = utf8.decode(response.bodyBytes);
+    final match = RegExp(r'<pre class="exception_value">(.*?)</pre>', dotAll: true).firstMatch(body);
+    // ignore: avoid_print
+    print('❗ _fetchList($url) ${response.statusCode} exception: ${match?.group(1) ?? body}');
     throw ApiException('불러오지 못했어요. (${response.statusCode})');
   }
 

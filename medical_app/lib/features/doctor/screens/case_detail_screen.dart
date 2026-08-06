@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -10,12 +9,12 @@ import '../models/review_case.dart';
 import 'case_review_history_screen.dart';
 import 'widgets/case_review_actions.dart';
 
-/// 드로잉 획(Stroke) 정보 모델
-class DrawingPoint {
-  final Offset offset;
+/// 드로잉 한 획(스트로크) — 연속된 좌표 목록 + 스타일. 한 번의 터치-드래그-떼기가 하나의 스트로크.
+class DrawingStroke {
+  final List<Offset> points;
   final Paint paint;
 
-  DrawingPoint({required this.offset, required this.paint});
+  DrawingStroke({required this.points, required this.paint});
 }
 
 /// AI 결과 상세뷰
@@ -163,28 +162,29 @@ class _MainTabToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: _tabButton('이미지', _MainTab.image)),
+        Expanded(child: _tabButton(context, '이미지', _MainTab.image)),
         const SizedBox(width: 8),
-        Expanded(child: _tabButton('소견', _MainTab.opinion)),
+        Expanded(child: _tabButton(context, '소견', _MainTab.opinion)),
       ],
     );
   }
 
-  Widget _tabButton(String label, _MainTab tab) {
+  Widget _tabButton(BuildContext context, String label, _MainTab tab) {
     final isSelected = selected == tab;
+    final colorScheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: () => onChanged(tab),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.gradientEnd : Colors.grey.shade100,
+          color: isSelected ? AppTheme.gradientEnd : colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(24),
         ),
         alignment: Alignment.center,
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.black87,
+            color: isSelected ? Colors.white : colorScheme.onSurface,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -220,12 +220,32 @@ class _ImageTabViewState extends State<_ImageTabView> {
   bool _annotationOn = false;
   Color _selectedColor = Colors.red;
   double _strokeWidth = 4;
-  
-  // 드로잉에 필요한 선 좌표 포인트 저장 리스트 (null은 선 연결 끊김을 의미)
-  final List<DrawingPoint?> _drawingPoints = [];
+
+  // 히트맵/오버레이/원본 각각 독립된 드로잉 — 한쪽에 그린 게 다른 모드엔 안 보임.
+  final Map<_ViewMode, List<DrawingStroke>> _strokesByMode = {
+    for (final m in _ViewMode.values) m: <DrawingStroke>[],
+  };
+
+  bool _originalReady = false;
+  bool _heatmapReady = false;
 
   final TransformationController _transformController =
       TransformationController();
+
+  @override
+  void didUpdateWidget(covariant _ImageTabView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.detail == null && widget.detail != null) {
+      _precacheImages();
+    }
+    // 상세 재조회(재시도/새로고침)가 다시 시작되면, 이전에 로딩됐던 이미지 기준으로
+    // 드로잉이 계속 켜져있는 상태가 남지 않도록 초기화.
+    if (!oldWidget.isLoading && widget.isLoading) {
+      _annotationOn = false;
+      _originalReady = false;
+      _heatmapReady = false;
+    }
+  }
 
   @override
   void dispose() {
@@ -233,9 +253,52 @@ class _ImageTabViewState extends State<_ImageTabView> {
     super.dispose();
   }
 
+  /// 상세조회로 이미지 URL이 확정되는 즉시 원본/히트맵을 미리 캐시에 올려서,
+  /// 사용자가 탭을 눌러 모드를 바꿀 때 바로 뜨도록 함(체감 로딩속도 개선).
+  void _precacheImages() {
+    final detail = widget.detail;
+    if (detail == null) return;
+    final original = detail.slideThumbnailUrl;
+    final heatmap = detail.heatmapUrl;
+    if (original != null && original.isNotEmpty) {
+      precacheImage(NetworkImage(original), context);
+    }
+    if (heatmap != null && heatmap.isNotEmpty) {
+      precacheImage(NetworkImage(heatmap), context);
+    }
+  }
+
+  void _markOriginalReady() {
+    if (!mounted || _originalReady) return;
+    setState(() => _originalReady = true);
+  }
+
+  void _markHeatmapReady() {
+    if (!mounted || _heatmapReady) return;
+    setState(() => _heatmapReady = true);
+  }
+
+  /// 현재 모드에 필요한 이미지가 전부 로딩됐는지 — 로딩 끝나기 전엔 드로잉을 막음.
+  bool get _currentImagesReady => switch (_mode) {
+        _ViewMode.original => _originalReady,
+        _ViewMode.heatmap => _heatmapReady,
+        _ViewMode.overlay => _originalReady && _heatmapReady,
+      };
+
+  // InteractiveViewer의 minScale과 동일한 하한 — 핀치줌은 이미 1배 밑으로 안 줄어드는데
+  // +/- 버튼은 매트릭스를 직접 조작해서 이 제한을 타지 않아 끝없이 작아지는 문제가 있었음.
+  static const double _minZoomScale = 1.0;
+
   void _zoom(double factor) {
     final matrix = _transformController.value.clone();
-    matrix.scale(factor);
+    final currentScale = matrix.getMaxScaleOnAxis();
+    final targetScale = currentScale * factor;
+    if (targetScale < _minZoomScale) {
+      // 축소 시 1배 밑으로 못 내려가게 — 그 이하로는 원본 크기로 고정.
+      setState(() => _transformController.value = Matrix4.identity());
+      return;
+    }
+    matrix.scaleByDouble(factor, factor, factor, 1.0);
     setState(() => _transformController.value = matrix);
   }
 
@@ -243,28 +306,30 @@ class _ImageTabViewState extends State<_ImageTabView> {
     setState(() => _transformController.value = Matrix4.identity());
   }
 
-  void _clearCanvas() {
+  void _undoLastStroke() {
     setState(() {
-      _drawingPoints.clear();
+      final strokes = _strokesByMode[_mode]!;
+      if (strokes.isNotEmpty) strokes.removeLast();
     });
   }
 
   Widget _placeholder(String message) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      color: Colors.grey.shade200,
+      color: colorScheme.surfaceContainerHighest,
       alignment: Alignment.center,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.image_outlined, size: 48, color: Colors.black38),
+          Icon(Icons.image_outlined, size: 48, color: colorScheme.onSurfaceVariant),
           const SizedBox(height: 8),
-          Text(message, style: TextStyle(color: Colors.black54, fontSize: 12)),
+          Text(message, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
         ],
       ),
     );
   }
 
-  Widget _networkImage(String? url) {
+  Widget _networkImage(String? url, {VoidCallback? onReady}) {
     if (url == null || url.isEmpty) return _placeholder('이미지가 없어요');
     return Image.network(
       url,
@@ -273,7 +338,22 @@ class _ImageTabViewState extends State<_ImageTabView> {
         if (progress == null) return child;
         return const Center(child: CircularProgressIndicator());
       },
-      errorBuilder: (context, error, stack) => _placeholder('이미지를 불러오지 못했어요'),
+      // frameBuilder는 "실제로 화면에 그릴 픽셀이 준비됐는지"를 알려주는 더 확실한 신호라
+      // 이걸 기준으로 드로잉 가능 여부(onReady)를 판단함 — loadingBuilder만으론
+      // 캐시/타이밍에 따라 실제 그림이 뜨기 전에 준비완료로 잘못 판단할 수 있음.
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if ((frame != null || wasSynchronouslyLoaded) && onReady != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => onReady());
+        }
+        return child;
+      },
+      errorBuilder: (context, error, stack) {
+        // 로딩 실패해도 "로딩 대기" 상태에 영영 걸려있지 않도록 완료 처리.
+        if (onReady != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => onReady());
+        }
+        return _placeholder('이미지를 불러오지 못했어요');
+      },
     );
   }
 
@@ -287,13 +367,16 @@ class _ImageTabViewState extends State<_ImageTabView> {
     if (detail == null) return _placeholder('이미지를 불러오지 못했어요');
 
     return switch (_mode) {
-      _ViewMode.original => _networkImage(detail.slideThumbnailUrl),
-      _ViewMode.heatmap => _networkImage(detail.heatmapUrl),
+      _ViewMode.original => _networkImage(detail.slideThumbnailUrl, onReady: _markOriginalReady),
+      _ViewMode.heatmap => _networkImage(detail.heatmapUrl, onReady: _markHeatmapReady),
       _ViewMode.overlay => Stack(
           fit: StackFit.expand,
           children: [
-            _networkImage(detail.slideThumbnailUrl),
-            Opacity(opacity: _overlayIntensity, child: _networkImage(detail.heatmapUrl)),
+            _networkImage(detail.slideThumbnailUrl, onReady: _markOriginalReady),
+            Opacity(
+              opacity: _overlayIntensity,
+              child: _networkImage(detail.heatmapUrl, onReady: _markHeatmapReady),
+            ),
           ],
         ),
     };
@@ -337,20 +420,21 @@ class _ImageTabViewState extends State<_ImageTabView> {
                           // 1. 이미지 배경 레이어
                           _buildImageLayer(),
 
-                          // 2. 드로잉 캔버스 레이어
+                          // 2. 드로잉 캔버스 레이어 (현재 모드에 그려진 스트로크만)
                           CustomPaint(
-                            painter: _DrawingPainter(points: _drawingPoints),
+                            painter: _DrawingPainter(strokes: _strokesByMode[_mode]!),
                           ),
 
-                          // 3. 터치 감지 전용 레이어 (드로잉 모드일 때만 맨 위에서 터치를 감지함)
-                          if (_annotationOn)
+                          // 3. 터치 감지 전용 레이어. 드로잉 모드 + 현재 모드 이미지 로딩 완료 후에만 활성화
+                          // — 이미지가 뜨기 전에 좌표가 어긋난 채로 그려지는 걸 막음.
+                          if (_annotationOn && _currentImagesReady)
                             GestureDetector(
                               behavior: HitTestBehavior.opaque, // 투명 영역도 터치 강제 수신
                               onPanStart: (details) {
                                 setState(() {
-                                  _drawingPoints.add(
-                                    DrawingPoint(
-                                      offset: details.localPosition,
+                                  _strokesByMode[_mode]!.add(
+                                    DrawingStroke(
+                                      points: [details.localPosition],
                                       paint: Paint()
                                         ..color = _selectedColor
                                         ..isAntiAlias = true
@@ -362,21 +446,7 @@ class _ImageTabViewState extends State<_ImageTabView> {
                               },
                               onPanUpdate: (details) {
                                 setState(() {
-                                  _drawingPoints.add(
-                                    DrawingPoint(
-                                      offset: details.localPosition,
-                                      paint: Paint()
-                                        ..color = _selectedColor
-                                        ..isAntiAlias = true
-                                        ..strokeWidth = _strokeWidth
-                                        ..strokeCap = StrokeCap.round,
-                                    ),
-                                  );
-                                });
-                              },
-                              onPanEnd: (_) {
-                                setState(() {
-                                  _drawingPoints.add(null);
+                                  _strokesByMode[_mode]!.last.points.add(details.localPosition);
                                 });
                               },
                             ),
@@ -390,9 +460,11 @@ class _ImageTabViewState extends State<_ImageTabView> {
                               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
                               color: Colors.black.withValues(alpha: 0.45),
                               child: Text(
-                                _annotationOn
-                                    ? '✏️ 드로잉 모드 (손가락으로 그려보세요)'
-                                    : '🖐️ 핀치줌·드래그로 이동 (연필 클릭 시 드로잉)',
+                                !_currentImagesReady
+                                    ? '⏳ 이미지 로딩 중이에요'
+                                    : _annotationOn
+                                        ? '✏️ 드로잉 모드 (손가락으로 그려보세요)'
+                                        : '🖐️ 핀치줌·드래그로 이동 (연필 클릭 시 드로잉)',
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(color: Colors.white, fontSize: 11),
                               ),
@@ -473,20 +545,24 @@ class _ImageTabViewState extends State<_ImageTabView> {
 
   Widget _modeChip(String label, _ViewMode mode) {
     final selected = _mode == mode;
+    final colorScheme = Theme.of(context).colorScheme;
     return ChoiceChip(
       label: Text(label),
       selected: selected,
-      onSelected: (_) => setState(() => _mode = mode),
+      onSelected: (_) => setState(() {
+        _mode = mode;
+        if (!_currentImagesReady) _annotationOn = false;
+      }),
       selectedColor: AppTheme.gradientEnd,
-      labelStyle: TextStyle(color: selected ? Colors.white : Colors.black87),
-      backgroundColor: Colors.grey.shade100,
+      labelStyle: TextStyle(color: selected ? Colors.white : colorScheme.onSurface),
+      backgroundColor: colorScheme.surfaceContainerHighest,
       side: BorderSide.none,
     );
   }
 
   Widget _zoomButton(IconData icon, VoidCallback onTap) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       shape: const CircleBorder(),
       elevation: 2,
       child: InkWell(
@@ -501,24 +577,29 @@ class _ImageTabViewState extends State<_ImageTabView> {
   }
 
   Widget _annotationToggleButton() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final enabled = _currentImagesReady;
+    // 켜져있는 것처럼 보이는 상태(파란 배경)는 실제로 그릴 수 있을 때(enabled)만 표시.
+    final active = _annotationOn && enabled;
     return IconButton.filled(
-      onPressed: () => setState(() => _annotationOn = !_annotationOn),
+      tooltip: enabled ? null : '이미지 로딩 중이에요',
+      onPressed: enabled ? () => setState(() => _annotationOn = !_annotationOn) : null,
       style: IconButton.styleFrom(
-        backgroundColor:
-            _annotationOn ? AppTheme.gradientEnd : Colors.grey.shade200,
+        backgroundColor: active ? AppTheme.gradientEnd : colorScheme.surfaceContainerHighest,
       ),
       icon: Icon(
         Icons.edit,
-        color: _annotationOn ? Colors.white : Colors.black54,
+        color: active ? Colors.white : colorScheme.onSurfaceVariant,
       ),
     );
   }
 
   Widget _eraserButton() {
+    final canUndo = _strokesByMode[_mode]!.isNotEmpty;
     return IconButton(
-      tooltip: '전체 지우기',
-      onPressed: _clearCanvas,
-      icon: const Icon(Icons.auto_fix_normal_outlined),
+      tooltip: '방금 그린 획 취소',
+      onPressed: canUndo ? _undoLastStroke : null,
+      icon: const Icon(Icons.undo),
     );
   }
 
@@ -532,36 +613,35 @@ class _ImageTabViewState extends State<_ImageTabView> {
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
-          border: selected ? Border.all(width: 2, color: Colors.black) : null,
+          border: selected
+              ? Border.all(width: 2, color: Theme.of(context).colorScheme.onSurface)
+              : null,
         ),
       ),
     );
   }
 }
 
-/// 캔버스에 포인트를 그려주는 CustomPainter
+/// 캔버스에 스트로크를 그려주는 CustomPainter
 class _DrawingPainter extends CustomPainter {
-  final List<DrawingPoint?> points;
+  final List<DrawingStroke> strokes;
 
-  _DrawingPainter({required this.points});
+  _DrawingPainter({required this.strokes});
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (int i = 0; i < points.length - 1; i++) {
-      if (points[i] != null && points[i + 1] != null) {
-        // 연속된 점 연결하여 선 그리기
-        canvas.drawLine(
-          points[i]!.offset,
-          points[i + 1]!.offset,
-          points[i]!.paint,
-        );
-      } else if (points[i] != null && points[i + 1] == null) {
+    for (final stroke in strokes) {
+      if (stroke.points.length == 1) {
         // 단일 클릭(점) 처리 - drawCircle 이용 (PointMode 오류 방지)
         canvas.drawCircle(
-          points[i]!.offset,
-          points[i]!.paint.strokeWidth / 2,
-          points[i]!.paint..style = PaintingStyle.fill,
+          stroke.points.first,
+          stroke.paint.strokeWidth / 2,
+          stroke.paint..style = PaintingStyle.fill,
         );
+        continue;
+      }
+      for (int i = 0; i < stroke.points.length - 1; i++) {
+        canvas.drawLine(stroke.points[i], stroke.points[i + 1], stroke.paint);
       }
     }
   }
@@ -588,6 +668,7 @@ class _OpinionTabView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = reviewCase;
+    final colorScheme = Theme.of(context).colorScheme;
 
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -598,7 +679,10 @@ class _OpinionTabView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(errorMessage ?? '소견을 불러오지 못했어요.', style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              errorMessage ?? '소견을 불러오지 못했어요.',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 8),
             TextButton(onPressed: onRetry, child: const Text('다시 시도')),
           ],
@@ -618,7 +702,7 @@ class _OpinionTabView extends StatelessWidget {
         const Text('유전자변이 확률', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         if (genePredictions.isEmpty)
-          Text('예측된 유전자변이가 없어요', style: TextStyle(color: Colors.grey.shade500))
+          Text('예측된 유전자변이가 없어요', style: TextStyle(color: colorScheme.onSurfaceVariant))
         else
           ...genePredictions.map((g) => _GenePredictionRow(prediction: g)),
         const SizedBox(height: 24),
@@ -628,12 +712,12 @@ class _OpinionTabView extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.grey.shade100,
+            color: colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
             (treatmentNote == null || treatmentNote.isEmpty) ? 'AI 소견이 없어요.' : treatmentNote,
-            style: TextStyle(color: Colors.grey.shade800),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
         ),
         const SizedBox(height: 16),
@@ -650,6 +734,7 @@ class _GenePredictionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = (prediction.probability * 100).round();
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -665,7 +750,7 @@ class _GenePredictionRow extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: prediction.probability.clamp(0, 1),
                 minHeight: 8,
-                backgroundColor: Colors.grey.shade200,
+                backgroundColor: colorScheme.surfaceContainerHighest,
                 color: AppTheme.gradientEnd,
               ),
             ),
@@ -676,7 +761,7 @@ class _GenePredictionRow extends StatelessWidget {
             child: Text(
               '$percent%',
               textAlign: TextAlign.end,
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
+              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
             ),
           ),
         ],
@@ -693,18 +778,19 @@ class _PredictedTypeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = (reviewCase.confidence * 100).round();
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 24),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
-          const Text('AI 예측 조직형',
-              style: TextStyle(fontSize: 13, color: Colors.black54)),
+          Text('AI 예측 조직형',
+              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
           const SizedBox(height: 8),
           Text(
             reviewCase.type.label,
@@ -762,7 +848,7 @@ class _TypeProbabilityBar extends StatelessWidget {
                 ),
                 Expanded(
                   flex: luscPercent,
-                  child: Container(color: Colors.grey.shade300),
+                  child: Container(color: Theme.of(context).colorScheme.surfaceContainerHighest),
                 ),
               ],
             ),

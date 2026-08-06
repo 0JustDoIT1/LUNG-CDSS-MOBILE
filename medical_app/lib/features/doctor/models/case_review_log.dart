@@ -1,14 +1,11 @@
-/// 케이스 검토 이력 한 건.
-/// CaseReviewLog(action=confirmed/edited)와 대응.
-///
-/// TODO: 실제 연결 시 이 클래스에 fromJson() 추가하고
-/// mockReviewLogs() 대신 API 응답으로 교체.
+/// 케이스 검토 이력 한 건. GET /api/cases/{case_id}/review-log/ 응답 구조(실제 확인됨).
 class CaseReviewLog {
   final String caseId;
   final ReviewAction action;
   final String reviewerName;
   final DateTime timestamp;
-  final String opinionSnapshot; // 검토 당시 소견 스냅샷
+  final String opinionSnapshot; // 검토 당시 소견 스냅샷(note_at_time)
+  final String? subtypeAtTime; // 검토 당시 확정/수정된 아형(LUAD/LUSC)
 
   const CaseReviewLog({
     required this.caseId,
@@ -16,7 +13,20 @@ class CaseReviewLog {
     required this.reviewerName,
     required this.timestamp,
     required this.opinionSnapshot,
+    this.subtypeAtTime,
   });
+
+  factory CaseReviewLog.fromJson(String caseId, Map<String, dynamic> json) {
+    final actionValue = json['action'] as String?;
+    return CaseReviewLog(
+      caseId: caseId,
+      action: actionValue == 'edited' ? ReviewAction.edited : ReviewAction.confirmed,
+      reviewerName: json['reviewer_name'] as String? ?? '',
+      timestamp: DateTime.parse(json['created_at'] as String),
+      opinionSnapshot: json['note_at_time'] as String? ?? '',
+      subtypeAtTime: json['subtype_at_time'] as String?,
+    );
+  }
 }
 
 enum ReviewAction {

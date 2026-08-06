@@ -152,7 +152,10 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_errorMessage ?? '프로필을 불러오지 못했어요.', style: TextStyle(color: Colors.grey.shade600)),
+              Text(
+                _errorMessage ?? '프로필을 불러오지 못했어요.',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
               const SizedBox(height: 8),
               TextButton(onPressed: _load, child: const Text('다시 시도')),
             ],
@@ -188,7 +191,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -225,7 +228,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                           side: BorderSide(
-                            color: Colors.grey.shade400,
+                            color: Theme.of(context).colorScheme.outlineVariant,
                             style: BorderStyle.solid,
                           ),
                         ),
@@ -302,15 +305,16 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: Colors.black54)),
+        Text(label, style: TextStyle(color: colorScheme.onSurfaceVariant)),
         Text(
           value,
           style: TextStyle(
             fontWeight: FontWeight.w600,
-            color: muted ? Colors.grey.shade500 : Colors.black87,
+            color: muted ? colorScheme.onSurfaceVariant : colorScheme.onSurface,
           ),
         ),
       ],

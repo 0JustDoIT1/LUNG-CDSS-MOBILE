@@ -4,9 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'core/auth/session_controller.dart';
+import 'core/notifications/foreground_message_banner.dart';
 import 'core/router/app_router.dart';
 import 'core/settings/app_settings_controller.dart';
 import 'core/theme/app_theme.dart';
+import 'main.dart';
 
 class MedicalApp extends StatelessWidget {
   const MedicalApp({super.key});
@@ -62,7 +64,12 @@ class _MedicalAppViewState extends State<_MedicalAppView> {
           data: mediaQuery.copyWith(
             textScaler: TextScaler.linear(settings.fontScale),
           ),
-          child: child!,
+          child: Stack(
+            children: [
+              child!,
+              ForegroundMessageBanner(incomingMessage: fcmService.incomingMessage),
+            ],
+          ),
         );
       },
       routerConfig: _router,

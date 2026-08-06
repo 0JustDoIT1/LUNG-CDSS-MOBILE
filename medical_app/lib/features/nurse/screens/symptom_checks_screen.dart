@@ -101,7 +101,10 @@ class _SymptomChecksScreenState extends State<SymptomChecksScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -119,17 +122,18 @@ class _SymptomChecksScreenState extends State<SymptomChecksScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: checks.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           final c = checks[index];
           final color = _riskColor(c);
+          final colorScheme = Theme.of(context).colorScheme;
           return Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: c.nurseReviewed ? Colors.grey.shade50 : color.withValues(alpha: 0.06),
+              color: c.nurseReviewed ? colorScheme.surfaceContainerHighest : color.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: c.nurseReviewed ? Colors.grey.shade200 : color.withValues(alpha: 0.4),
+                color: c.nurseReviewed ? Theme.of(context).dividerColor : color.withValues(alpha: 0.4),
               ),
             ),
             child: Row(
@@ -154,13 +158,13 @@ class _SymptomChecksScreenState extends State<SymptomChecksScreen> {
                       const SizedBox(height: 2),
                       Text(
                         _timeLabel(c.checkedAt),
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
                 ),
                 if (c.nurseReviewed)
-                  Text('확인완료', style: TextStyle(fontSize: 12, color: Colors.grey.shade500))
+                  Text('확인완료', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))
                 else
                   FilledButton(
                     style: FilledButton.styleFrom(backgroundColor: color),

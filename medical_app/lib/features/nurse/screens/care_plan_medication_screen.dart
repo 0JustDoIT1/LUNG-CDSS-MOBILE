@@ -7,8 +7,7 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/theme/app_theme.dart';
 
 /// 복약스케줄 설정 (간호사용). POST /api/medications/schedules/ 연동.
-/// API 스펙상 patient/drug_name/dosage/times_per_day/start_date만 지원 —
-/// 기존 화면에 있던 구체 복용시간(times)·종료일(end_date) 입력은 API 미지원이라 제거.
+/// times_per_day는 "HH:MM" 복용시각 목록, start_date/end_date 둘 다 필수.
 /// 조회(GET) API가 아직 없어서, 등록 목록은 이번 세션에 저장한 것만 낙관적으로 표시.
 class CarePlanMedicationScreen extends StatefulWidget {
   final String patientId;
@@ -27,24 +26,27 @@ class CarePlanMedicationScreen extends StatefulWidget {
 class _SavedSchedule {
   final String drugName;
   final String dosage;
-  final int timesPerDay;
+  final List<TimeOfDay> times;
   final DateTime startDate;
+  final DateTime endDate;
 
   const _SavedSchedule({
     required this.drugName,
     required this.dosage,
-    required this.timesPerDay,
+    required this.times,
     required this.startDate,
+    required this.endDate,
   });
 
-  String get summary => '$drugName · $dosage · 1일$timesPerDay회';
+  String get summary => '$drugName · $dosage · 1일${times.length}회';
 }
 
 class _CarePlanMedicationScreenState extends State<CarePlanMedicationScreen> {
   final _drugNameController = TextEditingController();
   final _dosageController = TextEditingController();
-  int _timesPerDay = 1;
+  final List<TimeOfDay> _times = [];
   DateTime _startDate = DateTime.now();
+  DateTime? _endDate;
 
   final List<_SavedSchedule> _registered = [];
   bool _isSaving = false;
@@ -56,6 +58,23 @@ class _CarePlanMedicationScreenState extends State<CarePlanMedicationScreen> {
     super.dispose();
   }
 
+  Future<void> _addTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (picked == null) return;
+    if (_times.any((t) => t.hour == picked.hour && t.minute == picked.minute)) return;
+    setState(() {
+      _times.add(picked);
+      _times.sort((a, b) => (a.hour * 60 + a.minute).compareTo(b.hour * 60 + b.minute));
+    });
+  }
+
+  void _removeTime(TimeOfDay time) {
+    setState(() => _times.remove(time));
+  }
+
   Future<void> _pickStartDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -63,7 +82,22 @@ class _CarePlanMedicationScreenState extends State<CarePlanMedicationScreen> {
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
     );
-    if (picked != null) setState(() => _startDate = picked);
+    if (picked == null) return;
+    setState(() {
+      _startDate = picked;
+      // 종료일이 시작일보다 빠르면 같이 밀어줌
+      if (_endDate != null && _endDate!.isBefore(_startDate)) _endDate = _startDate;
+    });
+  }
+
+  Future<void> _pickEndDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? _startDate,
+      firstDate: _startDate,
+      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+    );
+    if (picked != null) setState(() => _endDate = picked);
   }
 
   String _dateLabel(DateTime d) {
@@ -71,13 +105,31 @@ class _CarePlanMedicationScreenState extends State<CarePlanMedicationScreen> {
     return '${d.year}-${two(d.month)}-${two(d.day)}';
   }
 
+  String _timeLabel(TimeOfDay t) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(t.hour)}:${two(t.minute)}';
+  }
+
   Future<void> _saveSchedule() async {
     final drugName = _drugNameController.text.trim();
     final dosage = _dosageController.text.trim();
+    final endDate = _endDate;
 
     if (drugName.isEmpty || dosage.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('약물명과 용량을 입력해주세요')),
+      );
+      return;
+    }
+    if (_times.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('복용 시간을 하나 이상 추가해주세요')),
+      );
+      return;
+    }
+    if (endDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('종료일을 선택해주세요')),
       );
       return;
     }
@@ -92,8 +144,9 @@ class _CarePlanMedicationScreenState extends State<CarePlanMedicationScreen> {
         patientId: widget.patientId,
         drugName: drugName,
         dosage: dosage,
-        timesPerDay: _timesPerDay,
+        times: _times.map(_timeLabel).toList(),
         startDate: _startDate,
+        endDate: endDate,
         accessToken: token,
       );
 
@@ -102,13 +155,15 @@ class _CarePlanMedicationScreenState extends State<CarePlanMedicationScreen> {
         _registered.add(_SavedSchedule(
           drugName: drugName,
           dosage: dosage,
-          timesPerDay: _timesPerDay,
+          times: List.of(_times),
           startDate: _startDate,
+          endDate: endDate,
         ));
         _drugNameController.clear();
         _dosageController.clear();
-        _timesPerDay = 1;
+        _times.clear();
         _startDate = DateTime.now();
+        _endDate = null;
         _isSaving = false;
       });
 
@@ -128,41 +183,83 @@ class _CarePlanMedicationScreenState extends State<CarePlanMedicationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final labelColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return Scaffold(
       appBar: AppBar(title: Text('${widget.patientName} · 복약스케줄')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('약물명', style: TextStyle(color: Colors.black54, fontSize: 13)),
+          Text('약물명', style: TextStyle(color: labelColor, fontSize: 13)),
           const SizedBox(height: 6),
           TextField(
             controller: _drugNameController,
             decoration: const InputDecoration(border: OutlineInputBorder(), hintText: '예: 살부타몰'),
           ),
           const SizedBox(height: 16),
-          const Text('용량', style: TextStyle(color: Colors.black54, fontSize: 13)),
+          Text('용량', style: TextStyle(color: labelColor, fontSize: 13)),
           const SizedBox(height: 6),
           TextField(
             controller: _dosageController,
             decoration: const InputDecoration(border: OutlineInputBorder(), hintText: '예: 1정'),
           ),
           const SizedBox(height: 16),
-          const Text('1일 횟수', style: TextStyle(color: Colors.black54, fontSize: 13)),
-          const SizedBox(height: 6),
-          DropdownButtonFormField<int>(
-            initialValue: _timesPerDay,
-            decoration: const InputDecoration(border: OutlineInputBorder()),
-            items: [1, 2, 3, 4].map((n) => DropdownMenuItem(value: n, child: Text('$n회'))).toList(),
-            onChanged: (v) => setState(() => _timesPerDay = v ?? 1),
+          Text('복용 시간', style: TextStyle(color: labelColor, fontSize: 13)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ..._times.map((t) => Chip(
+                    label: Text(_timeLabel(t)),
+                    onDeleted: () => _removeTime(t),
+                  )),
+              ActionChip(
+                onPressed: _addTime,
+                avatar: const Icon(Icons.add, size: 16),
+                label: const Text('시간 추가'),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: Theme.of(context).dividerColor),
+                ),
+                backgroundColor: Colors.transparent,
+              ),
+            ],
           ),
           const SizedBox(height: 16),
-          const Text('시작일', style: TextStyle(color: Colors.black54, fontSize: 13)),
-          const SizedBox(height: 6),
-          OutlinedButton(onPressed: _pickStartDate, child: Text(_dateLabel(_startDate))),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('시작일', style: TextStyle(color: labelColor, fontSize: 13)),
+                    const SizedBox(height: 6),
+                    OutlinedButton(onPressed: _pickStartDate, child: Text(_dateLabel(_startDate))),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('종료일', style: TextStyle(color: labelColor, fontSize: 13)),
+                    const SizedBox(height: 6),
+                    OutlinedButton(
+                      onPressed: _pickEndDate,
+                      child: Text(_endDate == null ? '선택' : _dateLabel(_endDate!)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 8),
-          const Text('이번 세션에 등록한 스케줄', style: TextStyle(color: Colors.black54, fontSize: 13)),
+          Text('이번 세션에 등록한 스케줄', style: TextStyle(color: labelColor, fontSize: 13)),
           const SizedBox(height: 8),
           if (_registered.isEmpty)
             const Text('등록된 스케줄이 없어요')

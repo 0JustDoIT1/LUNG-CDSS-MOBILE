@@ -1,32 +1,101 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../mock/case_review_log_mock.dart';
+import '../../../core/api/auth_api.dart';
+import '../../../core/api/cases_api.dart';
+import '../../../core/auth/session_controller.dart';
 import '../models/case_review_log.dart';
 import '../models/review_case.dart';
 
-/// 검토 이력 전체열람.
+/// 검토 이력 전체열람. 실제 API(GET /api/cases/{id}/review-log/) 연동됨.
 /// CaseReviewLog 시간순(최신순), action별 아이콘 구분,
 /// 각 항목에 검토자·시각·소견스냅샷 표시.
-class CaseReviewHistoryScreen extends StatelessWidget {
+class CaseReviewHistoryScreen extends StatefulWidget {
   final ReviewCase reviewCase;
 
   const CaseReviewHistoryScreen({super.key, required this.reviewCase});
 
   @override
-  Widget build(BuildContext context) {
-    final logs = mockReviewLogs(reviewCase.id)
-      ..sort((a, b) => b.timestamp.compareTo(a.timestamp)); // 최신순
+  State<CaseReviewHistoryScreen> createState() => _CaseReviewHistoryScreenState();
+}
 
+class _CaseReviewHistoryScreenState extends State<CaseReviewHistoryScreen> {
+  List<CaseReviewLog>? _logs;
+  String? _errorMessage;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+
+    try {
+      final logs = await fetchCaseReviewLogs(widget.reviewCase.id, token);
+      logs.sort((a, b) => b.timestamp.compareTo(a.timestamp)); // 최신순
+      if (!mounted) return;
+      setState(() {
+        _logs = logs;
+        _isLoading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.message;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${reviewCase.patientName} 검토 이력')),
-      body: logs.isEmpty
-          ? const Center(child: Text('검토 이력이 없어요'))
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: logs.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) => _LogTile(log: logs[index]),
+      appBar: AppBar(title: Text('${widget.reviewCase.patientName} 검토 이력')),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
+            const SizedBox(height: 8),
+            TextButton(onPressed: _load, child: const Text('다시 시도')),
+          ],
+        ),
+      );
+    }
+
+    final logs = _logs ?? [];
+    if (logs.isEmpty) {
+      return const Center(child: Text('검토 이력이 없어요'));
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: logs.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, index) => _LogTile(log: logs[index]),
+      ),
     );
   }
 }
@@ -68,12 +137,22 @@ class _LogTile extends StatelessWidget {
                         log.reviewerName,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
+                      if (log.subtypeAtTime != null) ...[
+                        const SizedBox(width: 8),
+                        Chip(
+                          label: Text(log.subtypeAtTime!),
+                          labelStyle: const TextStyle(fontSize: 11),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          side: BorderSide.none,
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     _formatTime(log.timestamp),
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 8),
                   Text(log.opinionSnapshot),

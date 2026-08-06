@@ -111,7 +111,10 @@ class _DoctorHomeTabState extends State<DoctorHomeTab> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_casesErrorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              _casesErrorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -145,7 +148,10 @@ class _DoctorHomeTabState extends State<DoctorHomeTab> {
               _SectionTitle('즐겨찾기 케이스', icon: Icons.star, color: AppTheme.gradientStart),
               const SizedBox(height: 8),
               if (_favoriteCases.isEmpty)
-                Text('즐겨찾기한 케이스가 없어요', style: TextStyle(color: Colors.grey.shade500))
+                Text(
+                  '즐겨찾기한 케이스가 없어요',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                )
               else
                 ..._favoriteCases.map((c) => Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -155,7 +161,10 @@ class _DoctorHomeTabState extends State<DoctorHomeTab> {
               _SectionTitle('최근 검토대기', icon: Icons.pending_actions, color: AppTheme.gradientEnd),
               const SizedBox(height: 8),
               if (_recentPendingCases.isEmpty)
-                Text('검토대기 중인 케이스가 없어요', style: TextStyle(color: Colors.grey.shade500))
+                Text(
+                  '검토대기 중인 케이스가 없어요',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                )
               else
                 ..._recentPendingCases.map((c) => Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -189,7 +198,7 @@ class _GreetingHeader extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           '오늘의 검토대기·예약 현황',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ],
     );
@@ -317,12 +326,13 @@ class _NextAppointmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = appointment;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4)),
@@ -333,11 +343,11 @@ class _NextAppointmentCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.schedule, color: Colors.black87, size: 18),
+              Icon(Icons.schedule, color: onSurface, size: 18),
               const SizedBox(width: 6),
-              const Text(
+              Text(
                 '오늘의 다음 진료',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black87),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: onSurface),
               ),
               if (a != null) ...[
                 const Spacer(),
@@ -354,7 +364,10 @@ class _NextAppointmentCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (a == null)
-            Text('오늘 남은 예약이 없어요', style: TextStyle(color: Colors.grey.shade500))
+            Text(
+              '오늘 남은 예약이 없어요',
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            )
           else ...[
             Builder(builder: (context) {
               const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
@@ -362,15 +375,34 @@ class _NextAppointmentCard extends StatelessWidget {
                   '${a.dateTime.month}월 ${a.dateTime.day}일 (${weekdays[a.dateTime.weekday - 1]})';
               String two(int n) => n.toString().padLeft(2, '0');
               final timeLabel = '${two(a.dateTime.hour)}:${two(a.dateTime.minute)}';
+              final colorScheme = Theme.of(context).colorScheme;
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(dateLabel, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54)),
+                  Text(
+                    dateLabel,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(timeLabel, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.black, height: 1.0)),
+                  Text(
+                    timeLabel,
+                    style: TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                      height: 1.0,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  Text('${a.patientName}님', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.black87)),
+                  Text(
+                    '${a.patientName}님',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: colorScheme.onSurface),
+                  ),
                 ],
               );
             }),
@@ -389,11 +421,13 @@ class _AppointmentUnavailableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4)),
@@ -401,12 +435,12 @@ class _AppointmentUnavailableCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: Colors.grey.shade400, size: 20),
+          Icon(Icons.error_outline, color: colorScheme.onSurfaceVariant, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               '일정 정보를 불러오지 못했어요',
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant),
             ),
           ),
           TextButton(onPressed: onRetry, child: const Text('재시도')),
@@ -443,7 +477,6 @@ class _FavoriteCaseTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: Colors.white,
       child: ListTile(
         leading: const Icon(Icons.star, color: Colors.amber, size: 22),
         title: Text(reviewCase.patientName),
@@ -473,7 +506,6 @@ class _RecentCaseTile extends StatelessWidget {
     final confidencePercent = (reviewCase.confidence * 100).round();
 
     return Card(
-      color: Colors.white,
       child: ListTile(
         leading: Icon(Icons.pending_actions, color: AppTheme.gradientEnd, size: 22),
         title: Text(reviewCase.patientName),

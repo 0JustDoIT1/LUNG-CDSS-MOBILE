@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/api/auth_api.dart';
+import '../../../../core/api/medications_api.dart';
 import '../../../../core/api/symptoms_api.dart';
 import '../../../../core/auth/session_controller.dart';
-import '../../mock/patient_overview_mock.dart';
-import '../../models/patient_overview.dart';
 import '../../models/staff_patient.dart';
 import '../nurse_patient_detail_screen.dart';
 import '../symptom_checks_screen.dart';
@@ -13,7 +12,7 @@ import '../symptom_checks_screen.dart';
 /// 탭 2: 담당환자 목록.
 /// 환자 명단은 실제 API(GET /api/auth/staff/patients/) 기반.
 /// "확인필요" 표시는 증상위험도 API(GET /api/symptoms/checks/nurse-visible/) 기반.
-/// 복약현황(오늘 복약 X/N)은 조회 API 미확정이라 아직 mock 유지.
+/// 복약현황(오늘 복약 X/N)은 카드별로 GET /api/medications/logs/today/?patient_id= 조회.
 class NursePatientsTab extends StatefulWidget {
   const NursePatientsTab({super.key});
 
@@ -76,7 +75,10 @@ class _NursePatientsTabState extends State<NursePatientsTab> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -100,7 +102,7 @@ class _NursePatientsTabState extends State<NursePatientsTab> {
             const SizedBox(height: 4),
             Text(
               '호흡기내과 · ${_patients.length}명',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
             if (unreadRiskCount > 0)
@@ -136,13 +138,11 @@ class _NursePatientsTabState extends State<NursePatientsTab> {
                 ),
               ),
             ..._patients.map((p) {
-              final overview = mockNursePatientOverview(p.name);
-              final displayOverview = NursePatientOverview(
-                name: overview.name,
+              return _PatientCard(
+                patientId: p.id,
+                patientName: p.name,
                 needsAttention: _needsAttention(p.name),
-                todayDoses: overview.todayDoses,
               );
-              return _PatientCard(patient: displayOverview, patientId: p.id);
             }),
           ],
         ),
@@ -152,10 +152,15 @@ class _NursePatientsTabState extends State<NursePatientsTab> {
 }
 
 class _PatientCard extends StatefulWidget {
-  final NursePatientOverview patient;
   final String patientId;
+  final String patientName;
+  final bool needsAttention;
 
-  const _PatientCard({required this.patient, required this.patientId});
+  const _PatientCard({
+    required this.patientId,
+    required this.patientName,
+    required this.needsAttention,
+  });
 
   @override
   State<_PatientCard> createState() => _PatientCardState();
@@ -163,28 +168,54 @@ class _PatientCard extends StatefulWidget {
 
 class _PatientCardState extends State<_PatientCard> {
   bool _isPressed = false;
+  List<MedicationLog>? _logs; // null이면 아직 로딩 중이거나 실패
 
-  Color get _subtitleColor {
-    final p = widget.patient;
-    if (!p.hasSchedule) return Colors.grey.shade400;
-    if (p.takenCount == p.totalCount) return Colors.lightBlue.shade400;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadLogs());
+  }
+
+  Future<void> _loadLogs() async {
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+    try {
+      final logs = await fetchTodayMedicationLogs(accessToken: token, patientId: widget.patientId);
+      if (!mounted) return;
+      setState(() => _logs = logs);
+    } on ApiException catch (_) {
+      // 카드 하나 실패는 조용히 무시 — "복약스케줄 미설정"처럼 보이는 것으로 충분
+    }
+  }
+
+  bool get _hasSchedule => (_logs ?? const []).isNotEmpty;
+  int get _takenCount => (_logs ?? const []).where((l) => l.taken).length;
+  int get _totalCount => (_logs ?? const []).length;
+  String get _subtitle =>
+      _hasSchedule ? '오늘 복약 $_takenCount/$_totalCount 완료' : '복약스케줄 미설정';
+
+  Color _subtitleColor(BuildContext context) {
+    if (!_hasSchedule) return Theme.of(context).colorScheme.onSurfaceVariant;
+    if (_takenCount == _totalCount) return Colors.lightBlue.shade400;
     return Colors.orange.shade700;
   }
 
   @override
   Widget build(BuildContext context) {
-    final patient = widget.patient;
+    final colorScheme = Theme.of(context).colorScheme;
+    final allTaken = _hasSchedule && _takenCount == _totalCount;
 
     return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
+      onTap: () async {
+        await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => NursePatientDetailScreen(
               patientId: widget.patientId,
-              patientName: patient.name,
+              patientName: widget.patientName,
             ),
           ),
         );
+        _loadLogs(); // 상세화면에서 복약스케줄이 바뀌었을 수 있으니 새로고침
       },
       onTapDown: (_) => setState(() => _isPressed = true),
       onTapUp: (_) => setState(() => _isPressed = false),
@@ -194,25 +225,25 @@ class _PatientCardState extends State<_PatientCard> {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: _isPressed ? Colors.grey.shade100 : Colors.white,
+          color: _isPressed ? colorScheme.surfaceContainerHighest : colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: patient.needsAttention
+              backgroundColor: widget.needsAttention
                   ? Colors.orange.shade50
-                  : (patient.hasSchedule && patient.takenCount == patient.totalCount)
+                  : allTaken
                       ? Colors.lightBlue.shade50
-                      : Colors.grey.shade200,
+                      : colorScheme.surfaceContainerHighest,
               child: Text(
-                patient.name.substring(0, 1),
+                widget.patientName.substring(0, 1),
                 style: TextStyle(
-                  color: patient.needsAttention
+                  color: widget.needsAttention
                       ? Colors.orange.shade700
-                      : (patient.hasSchedule && patient.takenCount == patient.totalCount)
+                      : allTaken
                           ? Colors.lightBlue.shade700
-                          : Colors.black54,
+                          : colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -222,13 +253,16 @@ class _PatientCardState extends State<_PatientCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(patient.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(widget.patientName, style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
-                  Text(patient.subtitle, style: TextStyle(fontSize: 12, color: _subtitleColor)),
+                  Text(
+                    _subtitle,
+                    style: TextStyle(fontSize: 12, color: _subtitleColor(context)),
+                  ),
                 ],
               ),
             ),
-            if (patient.needsAttention)
+            if (widget.needsAttention)
               Chip(
                 label: const Text('확인필요'),
                 backgroundColor: Colors.orange.shade50,

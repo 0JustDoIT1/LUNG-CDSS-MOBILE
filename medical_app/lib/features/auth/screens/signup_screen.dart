@@ -292,9 +292,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: Theme.of(context).dividerColor),
               ),
               child: _hospitalLoading
                   ? Row(
@@ -304,7 +304,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                         const SizedBox(width: 8),
-                        Text('불러오는 중...', style: TextStyle(color: Colors.grey.shade500)),
+                        Text(
+                          '불러오는 중...',
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        ),
                       ],
                     )
                   : Text(_hospital?.name ?? '병원 정보를 불러오지 못했어요'),
@@ -372,7 +375,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
               const SizedBox(height: 8),
               if (_licenseStatus == _LicenseStatus.loading)
-                Text('확인 중입니다', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text(
+                  '확인 중입니다',
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
               if (_licenseStatus == _LicenseStatus.success)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -443,7 +449,14 @@ class _FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w600));
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 13,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
+      ),
+    );
   }
 }
 
@@ -468,7 +481,7 @@ class _TextInput extends StatelessWidget {
       onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade400),
+        hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -504,7 +517,7 @@ class _Dropdown<T> extends StatelessWidget {
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+        hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 14),
       ),
       dropdownMenuEntries: items
           .map((item) => DropdownMenuEntry(
@@ -517,7 +530,7 @@ class _Dropdown<T> extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                    border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
                   ),
                   child: Text(labelBuilder(item)),
                 ),

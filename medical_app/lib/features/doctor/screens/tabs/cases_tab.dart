@@ -108,11 +108,18 @@ class _CasesTabState extends State<CasesTab> {
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                       child: Row(
                         children: [
-                          Icon(Icons.swap_vert, size: 16, color: Colors.grey.shade600),
+                          Icon(
+                            Icons.swap_vert,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                           const SizedBox(width: 2),
                           Text(
                             _sortMode == _SortMode.confidence ? '정렬: 신뢰도순' : '정렬: 접수순',
-                            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),
@@ -153,7 +160,10 @@ class _CasesTabState extends State<CasesTab> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -181,7 +191,7 @@ class _CasesTabState extends State<CasesTab> {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: cases.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final c = cases[index];
         return _CaseCard(
@@ -216,14 +226,13 @@ class _CaseCard extends StatelessWidget {
     final confidencePercent = (c.confidence * 100).round();
 
     return Card(
-      color: Colors.white,
       child: ListTile(
         leading: IconButton(
           onPressed: () => onToggleFavorite(c),
           icon: Icon(
             c.isFavorite ? Icons.star : Icons.star_border,
             size: 28,
-            color: c.isFavorite ? Colors.amber : Colors.grey.shade400,
+            color: c.isFavorite ? Colors.amber : Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
         title: Text(c.patientName),
@@ -233,7 +242,7 @@ class _CaseCard extends StatelessWidget {
             Text('${c.type.label} · $confidencePercent%'),
             Text(
               _timeAgo(c.uploadedAt),
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ],
         ),

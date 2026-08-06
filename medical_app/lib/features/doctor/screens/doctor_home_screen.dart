@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,6 +7,7 @@ import '../../../core/api/auth_api.dart';
 import '../../../core/api/communication_api.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../main.dart';
 import '../models/notification.dart';
 import 'notification_screen.dart';
 import 'tabs/cases_tab.dart';
@@ -17,7 +20,7 @@ import 'tabs/settings_tab.dart';
 /// 순서: 케이스 / 일정 / 홈(중앙) / 채팅 / 메뉴
 ///
 /// 상단바는 탭이 바뀌어도 고정 — 좌측 로고+앱이름, 우측 QR/알림 아이콘.
-/// 채팅/알림 안읽음 개수는 실제 API 기반(화면 진입 시 + 알림/채팅 화면 다녀오면 갱신).
+/// 채팅/알림 안읽음 개수는 실제 API 기반 — 15초 폴링 + 포그라운드 푸시 수신 시 즉시 갱신.
 class DoctorHomeScreen extends StatefulWidget {
   const DoctorHomeScreen({super.key});
 
@@ -29,11 +32,21 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
   int _tabIndex = 2; // 앱 시작 시 홈 탭이 기본으로 보이도록
   int _unreadChatCount = 0;
   int _unreadNotificationCount = 0;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _refreshBadges());
+    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) => _refreshBadges());
+    fcmService.incomingMessage.addListener(_refreshBadges);
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    fcmService.incomingMessage.removeListener(_refreshBadges);
+    super.dispose();
   }
 
   Future<void> _refreshBadges() async {

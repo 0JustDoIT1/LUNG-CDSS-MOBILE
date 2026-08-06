@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,9 +8,11 @@ import '../../../../core/api/communication_api.dart' as api;
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/chat/chat_room_screen.dart';
 import '../../../../core/chat/new_chat_screen.dart';
+import '../../../../main.dart';
 
 /// 탭 4: 의사 채팅 목록. 실제 API(GET /api/communication/threads/) 연동됨.
 /// 채팅방 안 메시지 조회/전송도 실제 API+WS 연동됨.
+/// 목록은 10초 폴링 + 포그라운드 푸시 수신 시 즉시 새로고침으로 최신 상태 유지.
 class ChatTab extends StatefulWidget {
   const ChatTab({super.key});
 
@@ -20,11 +24,21 @@ class _ChatTabState extends State<ChatTab> {
   List<api.ChatThread>? _threads;
   String? _errorMessage;
   bool _isLoading = true;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _silentRefresh());
+    fcmService.incomingMessage.addListener(_silentRefresh);
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    fcmService.incomingMessage.removeListener(_silentRefresh);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -48,6 +62,19 @@ class _ChatTabState extends State<ChatTab> {
         _isLoading = false;
         _errorMessage = e.message;
       });
+    }
+  }
+
+  /// 폴링/푸시 수신 시 배경에서 조용히 새로고침 — 실패해도 기존 목록 유지, 로딩/에러 화면 건드리지 않음.
+  Future<void> _silentRefresh() async {
+    final token = context.read<SessionController>().accessToken;
+    if (token == null) return;
+    try {
+      final threads = await api.fetchChatThreads(token);
+      if (!mounted) return;
+      setState(() => _threads = threads);
+    } on ApiException catch (_) {
+      // 조용히 무시
     }
   }
 
@@ -79,7 +106,10 @@ class _ChatTabState extends State<ChatTab> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -97,7 +127,7 @@ class _ChatTabState extends State<ChatTab> {
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: threads.length,
-        separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
+        separatorBuilder: (_, _) => const Divider(height: 1, indent: 76),
         itemBuilder: (context, index) => _ThreadTile(thread: threads[index]),
       ),
     );
@@ -119,14 +149,16 @@ class _ThreadTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: CircleAvatar(
         radius: 24,
-        backgroundColor: Colors.grey.shade200,
+        backgroundColor: colorScheme.surfaceContainerHighest,
         child: Text(
           thread.otherParticipantName.isNotEmpty ? thread.otherParticipantName.substring(0, 1) : '?',
-          style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black54),
+          style: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant),
         ),
       ),
       title: Text(thread.otherParticipantName, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -134,15 +166,15 @@ class _ThreadTile extends StatelessWidget {
         thread.lastMessage,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: Colors.grey.shade600),
+        style: TextStyle(color: colorScheme.onSurfaceVariant),
       ),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
-            _timeLabel(thread.createdAt),
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            _timeLabel(thread.lastMessageAt),
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
           ),
           if (thread.unreadCount > 0) ...[
             const SizedBox(height: 4),

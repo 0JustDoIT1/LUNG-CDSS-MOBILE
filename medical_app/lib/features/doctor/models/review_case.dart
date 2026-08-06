@@ -20,6 +20,8 @@ class ReviewCase {
   final String? heatmapUrl; // AI 히트맵 이미지
   final List<GenePrediction> genePredictions;
   final String? treatmentNote; // AI 소견 텍스트
+  final String? finalSubtype; // 의사가 확정한 최종 아형 ('LUAD' | 'LUSC') — confirmed 상태일 때만 존재
+  final String? finalNote; // 의사가 확정한 최종 소견
 
   ReviewCase({
     required this.id,
@@ -35,6 +37,8 @@ class ReviewCase {
     this.heatmapUrl,
     this.genePredictions = const [],
     this.treatmentNote,
+    this.finalSubtype,
+    this.finalNote,
   });
 
   /// confidence 70% 미만이면 긴급 케이스.
@@ -71,6 +75,8 @@ class ReviewCase {
       heatmapUrl: source['heatmap_url'] as String?,
       genePredictions: genePredictions,
       treatmentNote: source['treatment_note'] as String?,
+      finalSubtype: json['final_subtype'] as String?,
+      finalNote: json['final_note'] as String?,
     );
   }
 }

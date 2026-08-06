@@ -109,18 +109,25 @@ Future<void> _loadRisk() async {
             _SectionTitle('케어플랜 처리 필요'),
             const SizedBox(height: 8),
             if (_pendingSetup.isEmpty)
-              Text('복약설정이 필요한 환자가 없어요', style: TextStyle(color: Colors.grey.shade500))
+              Text(
+                '복약설정이 필요한 환자가 없어요',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              )
             else
               ..._pendingSetup.map((p) => _CarePlanTile(
                     name: p.name,
                     subtitle: '치료계획 확정 · 복약설정 대기',
                     patientId: p.id,
+                    onReturn: _loadRisk,
                   )),
             const SizedBox(height: 24),
             _SectionTitle('담당환자 이상 신호'),
             const SizedBox(height: 8),
             if (_riskChecks.isEmpty)
-              Text('현재 확인이 필요한 위험 신호가 없어요', style: TextStyle(color: Colors.grey.shade500))
+              Text(
+                '현재 확인이 필요한 위험 신호가 없어요',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              )
             else
               ..._riskChecks.take(3).map((c) => _AlertPatientTile(check: c)),
           ],
@@ -143,7 +150,7 @@ class _GreetingHeader extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           '오늘의 예약요청·케어플랜 현황',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ],
     );
@@ -202,8 +209,10 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Material(
-      color: highlighted ? Colors.orange.shade50 : Colors.grey.shade100,
+      color: highlighted ? Colors.orange.shade50 : colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -219,7 +228,7 @@ class _SummaryCard extends StatelessWidget {
                     title,
                     style: TextStyle(
                       fontSize: 13,
-                      color: highlighted ? Colors.orange.shade700 : Colors.grey.shade600,
+                      color: highlighted ? Colors.orange.shade700 : colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -228,7 +237,7 @@ class _SummaryCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: highlighted ? Colors.orange.shade800 : Colors.black87,
+                      color: highlighted ? Colors.orange.shade800 : colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -238,7 +247,7 @@ class _SummaryCard extends StatelessWidget {
                 right: 0,
                 child: Icon(
                   Icons.chevron_right,
-                  color: highlighted ? Colors.orange.shade300 : Colors.grey.shade400,
+                  color: highlighted ? Colors.orange.shade300 : colorScheme.onSurfaceVariant,
                   size: 20,
                 ),
               ),
@@ -270,28 +279,29 @@ class _NextVisitCard extends StatelessWidget {
     final a = appointment;
     const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
     String two(int n) => n.toString().padLeft(2, '0');
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.event_available, color: Colors.black87, size: 18),
+              Icon(Icons.event_available, color: colorScheme.onSurface, size: 18),
               const SizedBox(width: 6),
-              const Text(
+              Text(
                 '다음 방문 예정',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: Colors.black87,
+                  color: colorScheme.onSurface,
                 ),
               ),
               if (a != null) ...[
@@ -316,33 +326,36 @@ class _NextVisitCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (a == null)
-            Text('오늘 남은 방문이 없어요', style: TextStyle(color: Colors.grey.shade500))
+            Text(
+              '오늘 남은 방문이 없어요',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            )
           else ...[
             Text(
               '${a.displaySlot.month}월 ${a.displaySlot.day}일 (${weekdays[a.displaySlot.weekday - 1]})',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: Colors.black54,
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               '${two(a.displaySlot.hour)}:${two(a.displaySlot.minute)}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,
-                color: Colors.black,
+                color: colorScheme.onSurface,
                 height: 1.0,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               '${a.patientName}님',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
-                color: Colors.black87,
+                color: colorScheme.onSurface,
               ),
             ),
           ],
@@ -370,15 +383,21 @@ class _CarePlanTile extends StatelessWidget {
   final String name;
   final String subtitle;
   final String? patientId; // null이면 UUID 매칭 실패 — 탭 비활성화
-  const _CarePlanTile({required this.name, required this.subtitle, required this.patientId});
+  final VoidCallback onReturn;
+  const _CarePlanTile({
+    required this.name,
+    required this.subtitle,
+    required this.patientId,
+    required this.onReturn,
+  });
 
   @override
   Widget build(BuildContext context) {
     final enabled = patientId != null;
     return GestureDetector(
       onTap: enabled
-          ? () {
-              Navigator.of(context).push(
+          ? () async {
+              await Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => CarePlanMedicationScreen(
                     patientId: patientId!,
@@ -386,6 +405,7 @@ class _CarePlanTile extends StatelessWidget {
                   ),
                 ),
               );
+              onReturn(); // 스케줄이 새로 생겼을 수 있으니 목록 새로고침
             }
           : null,
       child: Opacity(
@@ -394,7 +414,7 @@ class _CarePlanTile extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.orange.shade200),
         ),
@@ -408,7 +428,10 @@ class _CarePlanTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -440,7 +463,7 @@ class _AlertPatientTile extends StatelessWidget {
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
         elevation: 0,
-        color: Colors.grey.shade50,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ListTile(
           leading: CircleAvatar(

@@ -47,7 +47,7 @@ class NurseSettingsTab extends StatelessWidget {
                   leading: _buildIconBox(Icons.settings_outlined, iconBgColor: iconBgColor),
                   title: const Text('설정', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                   subtitle: const Text('화면, 알림 및 위젯 설정'),
-                  trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                  trailing: Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const NurseAppSettingsScreen()),
@@ -80,7 +80,7 @@ class NurseSettingsTab extends StatelessWidget {
                       color: Colors.redAccent,
                     ),
                   ),
-                  trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                  trailing: Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
                   onTap: () => _showLogoutDialog(context),
                 ),
               ],
@@ -92,7 +92,7 @@ class NurseSettingsTab extends StatelessWidget {
           Center(
             child: Text(
               '앱 버전 v1.0.0',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
             ),
           ),
           const SizedBox(height: 16),
@@ -113,7 +113,10 @@ class NurseSettingsTab extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: Text('취소', style: TextStyle(color: Colors.grey.shade500)),
+              child: Text(
+                '취소',
+                style: TextStyle(color: Theme.of(dialogContext).colorScheme.onSurfaceVariant),
+              ),
             ),
             TextButton(
               onPressed: () {

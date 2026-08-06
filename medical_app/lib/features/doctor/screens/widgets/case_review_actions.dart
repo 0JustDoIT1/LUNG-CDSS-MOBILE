@@ -98,11 +98,18 @@ class CaseReviewActionBar extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.check_circle_outline, size: 18, color: Colors.grey.shade500),
+            Icon(
+              Icons.check_circle_outline,
+              size: 18,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: 6),
             Text(
               '이미 확정된 케이스예요',
-              style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),

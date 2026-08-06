@@ -87,7 +87,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -103,7 +106,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: counterparts.length,
-      separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
+      separatorBuilder: (_, _) => const Divider(height: 1, indent: 76),
       itemBuilder: (context, index) {
         final counterpart = counterparts[index];
         final isStarting = _startingUserId == counterpart.id;
@@ -111,10 +114,13 @@ class _NewChatScreenState extends State<NewChatScreen> {
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           leading: CircleAvatar(
             radius: 24,
-            backgroundColor: Colors.grey.shade200,
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: Text(
               counterpart.name.isNotEmpty ? counterpart.name.substring(0, 1) : '?',
-              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black54),
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           title: Text(counterpart.name, style: const TextStyle(fontWeight: FontWeight.w600)),

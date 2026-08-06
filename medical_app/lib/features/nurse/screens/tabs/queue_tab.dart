@@ -38,7 +38,7 @@ class _QueueTabState extends State<QueueTab> with SingleTickerProviderStateMixin
         TabBar(
           controller: _tabController,
           labelColor: AppTheme.gradientEnd,
-          unselectedLabelColor: Colors.grey.shade500,
+          unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
           indicatorColor: AppTheme.gradientEnd,
           tabs: const [
             Tab(text: '예약요청'),
@@ -147,7 +147,10 @@ class _RequestQueueViewState extends State<_RequestQueueView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -165,15 +168,16 @@ class _RequestQueueViewState extends State<_RequestQueueView> {
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: requests.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           final r = requests[index];
+          final colorScheme = Theme.of(context).colorScheme;
           return Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: colorScheme.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,30 +188,30 @@ class _RequestQueueViewState extends State<_RequestQueueView> {
                     const SizedBox(width: 8),
                     Text(
                       '신청 ${_fmtRequestedAt(r.createdAt)}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(
                   '${r.department} · ${r.doctorName}',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                  style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   '예약 일정',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: colorScheme.onSurface),
                 ),
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
+                    color: colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     '${_fmtDate(r.requestedAtSlot)} ${_fmtTime(r.requestedAtSlot)}',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -316,7 +320,10 @@ class _TodayVisitsViewState extends State<_TodayVisitsView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -340,7 +347,7 @@ class _TodayVisitsViewState extends State<_TodayVisitsView> {
         children: [
           TabBar(
             labelColor: AppTheme.gradientEnd,
-            unselectedLabelColor: Colors.grey.shade500,
+            unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
             indicatorColor: AppTheme.gradientEnd,
             tabs: [
               Tab(text: '대기중 (${pending.length})'),
@@ -387,13 +394,15 @@ class _AppointmentList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (appointments.isEmpty) {
-      return Center(child: Text(emptyText, style: TextStyle(color: Colors.grey.shade500)));
+      return Center(
+        child: Text(emptyText, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      );
     }
 
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: appointments.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         return _AppointmentRow(
           appointment: appointments[index],
@@ -425,12 +434,14 @@ class _AppointmentRow extends StatelessWidget {
         appointment.status == AppointmentStatus.remindedD7 ||
         appointment.status == AppointmentStatus.remindedD1;
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Row(
         children: [
@@ -440,7 +451,7 @@ class _AppointmentRow extends StatelessWidget {
               children: [
                 Text(appointment.patientName, style: const TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                Text(time, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text(time, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
               ],
             ),
           ),
@@ -457,7 +468,7 @@ class _AppointmentRow extends StatelessWidget {
           else if (appointment.status == AppointmentStatus.noShow)
             _StatusPill(label: '미방문', color: Colors.red.shade700, filled: false, onTap: null)
           else
-            _StatusPill(label: '취소됨', color: Colors.grey.shade600, filled: false, onTap: null),
+            _StatusPill(label: '취소됨', color: colorScheme.onSurfaceVariant, filled: false, onTap: null),
           if (isPending) ...[
             const SizedBox(width: 6),
             _StatusPill(

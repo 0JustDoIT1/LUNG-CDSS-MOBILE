@@ -9,10 +9,14 @@ import 'package:medical_app/app.dart';
 void main() {
   testWidgets('앱 실행 시 로그인 화면이 보인다', (WidgetTester tester) async {
     await tester.pumpWidget(const MedicalApp());
-    await tester.pumpAndSettle();
+    await tester.pump(); // 첫 프레임 — 스플래시 표시
+    await tester.pump(const Duration(milliseconds: 1600)); // 스플래시의 1.5초 지연 경과
+    await tester.pumpAndSettle(); // /login으로 전환 완료
 
-    expect(find.text('로그인'), findsWidgets);
-    expect(find.text('의사로 로그인'), findsOneWidget);
-    expect(find.text('간호사로 로그인'), findsOneWidget);
+    // 카드 타이틀 + 로그인 버튼 라벨, 총 2곳에서 '로그인' 텍스트가 보임
+    expect(find.text('로그인'), findsNWidgets(2));
+    expect(find.text('의료진용'), findsOneWidget);
+    // 이메일/비밀번호 입력창 2개
+    expect(find.byType(TextField), findsNWidgets(2));
   });
 }

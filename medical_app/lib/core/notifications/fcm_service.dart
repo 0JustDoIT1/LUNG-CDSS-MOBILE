@@ -2,6 +2,7 @@
 import 'dart:math';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,6 +18,10 @@ class FcmService {
 
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
+
+  /// 앱이 포그라운드일 때 도착한 푸시. 화면단 배지 새로고침/상단 배너 표시용.
+  /// 값이 바뀔 때마다(매 수신마다) 알림 — 상단 배너 위젯, 채팅탭/홈쉘이 구독함.
+  final ValueNotifier<RemoteMessage?> incomingMessage = ValueNotifier(null);
 
   bool _initialized = false;
 
@@ -119,6 +124,8 @@ class FcmService {
           ),
         ),
       );
+
+      incomingMessage.value = message;
     });
   }
 }

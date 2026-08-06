@@ -101,7 +101,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -118,7 +121,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       onRefresh: _load,
       child: ListView.separated(
         itemCount: notifications.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final n = notifications[index];
           return ListTile(
@@ -131,7 +134,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
               children: [
                 Text(
                   _timeAgo(n.createdAt),
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
                 if (!n.isRead) ...[
                   const SizedBox(height: 4),

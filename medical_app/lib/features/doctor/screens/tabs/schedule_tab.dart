@@ -22,12 +22,26 @@ class ScheduleTab extends StatefulWidget {
 
 enum _CalendarMode { month, week }
 
+/// 특정 날짜의 휴진 여부. half는 오전/오후 중 한쪽만 휴진.
+enum _OffStatus { none, half, full }
+
+const _weekdayCodes = {
+  DateTime.monday: 'mon',
+  DateTime.tuesday: 'tue',
+  DateTime.wednesday: 'wed',
+  DateTime.thursday: 'thu',
+  DateTime.friday: 'fri',
+  DateTime.saturday: 'sat',
+};
+
 class _ScheduleTabState extends State<ScheduleTab> {
   _CalendarMode _mode = _CalendarMode.month;
   DateTime _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime _selectedDate = DateTime.now();
 
   List<Appointment> _appointments = [];
+  List<WeeklyScheduleSlot> _weeklySchedule = [];
+  List<DoctorOffDay> _offDays = [];
   String? _errorMessage;
   bool _isLoading = true;
 
@@ -59,6 +73,55 @@ class _ScheduleTabState extends State<ScheduleTab> {
         _errorMessage = e.message;
       });
     }
+
+    try {
+      final weekly = await fetchDoctorWeeklySchedule(token);
+      final offDays = await fetchDoctorOffDays(token);
+      if (!mounted) return;
+      setState(() {
+        _weeklySchedule = weekly;
+        _offDays = offDays;
+      });
+    } on ApiException catch (_) {
+      // 휴진 정보 로드 실패는 조용히 무시 — 예약 목록 자체는 계속 보여줘야 함
+    }
+  }
+
+  ({bool amOff, bool pmOff}) _offDetailsFor(DateTime day) {
+    if (day.weekday == DateTime.sunday) return (amOff: true, pmOff: true);
+
+    var amOff = false;
+    var pmOff = false;
+
+    final code = _weekdayCodes[day.weekday];
+    if (code != null) {
+      amOff = _weeklySchedule.any((s) => s.dayOfWeek == code && s.period == 'am' && !s.available);
+      pmOff = _weeklySchedule.any((s) => s.dayOfWeek == code && s.period == 'pm' && !s.available);
+    }
+
+    for (final o in _offDays) {
+      if (o.date.year == day.year && o.date.month == day.month && o.date.day == day.day) {
+        amOff = amOff || o.isMorningOff;
+        pmOff = pmOff || o.isAfternoonOff;
+      }
+    }
+
+    return (amOff: amOff, pmOff: pmOff);
+  }
+
+  _OffStatus _offStatusFor(DateTime day) {
+    final details = _offDetailsFor(day);
+    if (details.amOff && details.pmOff) return _OffStatus.full;
+    if (details.amOff || details.pmOff) return _OffStatus.half;
+    return _OffStatus.none;
+  }
+
+  String? get _selectedDayOffLabel {
+    final details = _offDetailsFor(_selectedDate);
+    if (details.amOff && details.pmOff) return '종일 휴진';
+    if (details.amOff) return '오전 휴진';
+    if (details.pmOff) return '오후 휴진';
+    return null;
   }
 
   bool _hasAppointment(DateTime day) {
@@ -103,10 +166,11 @@ class _ScheduleTabState extends State<ScheduleTab> {
                 const SizedBox(width: 8),
                 IconButton(onPressed: _load, icon: const Icon(Icons.refresh, size: 20)),
                 TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
+                  onPressed: () async {
+                    await Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const DoctorOffDayScreen()),
                     );
+                    _load(); // 휴진 등록/취소하고 돌아왔을 수 있으니 새로고침
                   },
                   icon: const Icon(Icons.event_busy, size: 18),
                   label: const Text('휴진등록'),
@@ -119,14 +183,50 @@ class _ScheduleTabState extends State<ScheduleTab> {
             focusedMonth: _focusedMonth,
             selectedDate: _selectedDate,
             hasAppointment: _hasAppointment,
+            offStatusFor: _offStatusFor,
             onMonthChange: _changeMonth,
             onSelectDate: (d) => setState(() => _selectedDate = d),
           ) else _WeekRow(
             selectedDate: _selectedDate,
             hasAppointment: _hasAppointment,
+            offStatusFor: _offStatusFor,
             onSelectDate: (d) => setState(() => _selectedDate = d),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Row(
+              children: [
+                _LegendDot(color: Colors.blue, label: '예약 있음'),
+                const SizedBox(width: 16),
+                _LegendDot(color: Colors.orange, label: '휴진'),
+              ],
+            ),
+          ),
           const Divider(height: 24),
+          if (_selectedDayOffLabel != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.event_busy, size: 16, color: Colors.orange.shade700),
+                    const SizedBox(width: 6),
+                    Text(
+                      _selectedDayOffLabel!,
+                      style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           Expanded(child: _buildList()),
         ],
       ),
@@ -142,7 +242,10 @@ class _ScheduleTabState extends State<ScheduleTab> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: TextStyle(color: Colors.grey.shade600)),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('다시 시도')),
           ],
@@ -155,7 +258,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: _selectedDayAppointments.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final a = _selectedDayAppointments[index];
         return _AppointmentTile(appointment: a);
@@ -175,19 +278,19 @@ class _CalendarModeToggle extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         children: [
-          Expanded(child: _pill('월간', _CalendarMode.month)),
-          Expanded(child: _pill('주간', _CalendarMode.week)),
+          Expanded(child: _pill(context, '월간', _CalendarMode.month)),
+          Expanded(child: _pill(context, '주간', _CalendarMode.week)),
         ],
       ),
     );
   }
 
-  Widget _pill(String label, _CalendarMode mode) {
+  Widget _pill(BuildContext context, String label, _CalendarMode mode) {
     final isSelected = selected == mode;
     return GestureDetector(
       onTap: () => onChanged(mode),
@@ -202,7 +305,7 @@ class _CalendarModeToggle extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.grey.shade600,
+            color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             fontSize: 13,
           ),
@@ -216,6 +319,7 @@ class _MonthGrid extends StatelessWidget {
   final DateTime focusedMonth;
   final DateTime selectedDate;
   final bool Function(DateTime) hasAppointment;
+  final _OffStatus Function(DateTime) offStatusFor;
   final void Function(int delta) onMonthChange;
   final void Function(DateTime) onSelectDate;
 
@@ -223,6 +327,7 @@ class _MonthGrid extends StatelessWidget {
     required this.focusedMonth,
     required this.selectedDate,
     required this.hasAppointment,
+    required this.offStatusFor,
     required this.onMonthChange,
     required this.onSelectDate,
   });
@@ -249,6 +354,7 @@ class _MonthGrid extends StatelessWidget {
         day: day,
         isSelected: isSelected,
         hasDot: hasAppointment(date),
+        offStatus: offStatusFor(date),
         isPast: isPast || isSunday,
         onTap: () => onSelectDate(date),
       ));
@@ -302,7 +408,10 @@ class _WeekdayLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Center(
-        child: Text(text, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+        child: Text(
+          text,
+          style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
       ),
     );
   }
@@ -312,6 +421,7 @@ class _DayCell extends StatelessWidget {
   final int day;
   final bool isSelected;
   final bool hasDot;
+  final _OffStatus offStatus;
   final bool isPast;
   final VoidCallback onTap;
 
@@ -319,18 +429,43 @@ class _DayCell extends StatelessWidget {
     required this.day,
     required this.isSelected,
     required this.hasDot,
+    required this.offStatus,
     required this.isPast,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isFullOff = offStatus == _OffStatus.full;
+    final isHalfOff = offStatus == _OffStatus.half;
+
+    final Color cellColor;
+    if (isSelected) {
+      cellColor = colorScheme.onSurface;
+    } else if (isFullOff) {
+      cellColor = Colors.orange.withValues(alpha: isPast ? 0.08 : 0.18);
+    } else {
+      cellColor = Colors.transparent;
+    }
+
+    final Color textColor;
+    if (isPast) {
+      textColor = colorScheme.onSurface.withValues(alpha: 0.38);
+    } else if (isSelected) {
+      textColor = colorScheme.surface;
+    } else if (isFullOff) {
+      textColor = Colors.orange.shade800;
+    } else {
+      textColor = colorScheme.onSurface;
+    }
+
     return GestureDetector(
       onTap: isPast ? null : onTap,
       child: Container(
         margin: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.black : Colors.transparent,
+          color: cellColor,
           shape: BoxShape.circle,
         ),
         alignment: Alignment.center,
@@ -340,22 +475,22 @@ class _DayCell extends StatelessWidget {
             Text(
               '$day',
               style: TextStyle(
-                color: isPast
-                    ? Colors.black26
-                    : (isSelected ? Colors.white : Colors.black87),
+                color: textColor,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
-            if (hasDot)
-              Container(
-                margin: const EdgeInsets.only(top: 2),
-                width: 4,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isPast
-                      ? Colors.black26
-                      : (isSelected ? Colors.white : Colors.blue),
-                  shape: BoxShape.circle,
+            if (hasDot || isHalfOff)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasDot) ...[
+                      _dot(isPast || isSelected ? textColor : Colors.blue),
+                      if (isHalfOff) const SizedBox(width: 2),
+                    ],
+                    if (isHalfOff) _dot(isPast || isSelected ? textColor : Colors.orange),
+                  ],
                 ),
               ),
           ],
@@ -363,16 +498,52 @@ class _DayCell extends StatelessWidget {
       ),
     );
   }
+
+  Widget _dot(Color color) {
+    return Container(
+      width: 4,
+      height: 4,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _LegendDot({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
 }
 
 class _WeekRow extends StatelessWidget {
   final DateTime selectedDate;
   final bool Function(DateTime) hasAppointment;
+  final _OffStatus Function(DateTime) offStatusFor;
   final void Function(DateTime) onSelectDate;
 
   const _WeekRow({
     required this.selectedDate,
     required this.hasAppointment,
+    required this.offStatusFor,
     required this.onSelectDate,
   });
 
@@ -397,12 +568,16 @@ class _WeekRow extends StatelessWidget {
           return Expanded(
             child: Column(
               children: [
-                Text(labels[i], style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                Text(
+                  labels[i],
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
                 const SizedBox(height: 4),
                 _DayCell(
                   day: date.day,
                   isSelected: isSelected,
                   hasDot: hasAppointment(date),
+                  offStatus: offStatusFor(date),
                   isPast: isPast || isSunday,
                   onTap: () => onSelectDate(date),
                 ),

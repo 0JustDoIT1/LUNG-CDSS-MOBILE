@@ -56,7 +56,11 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          Container(width: double.infinity, height: double.infinity, color: Colors.white),
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: Theme.of(context).colorScheme.surface,
+          ),
           Positioned(
             top: -80,
             left: -60,
@@ -133,13 +137,15 @@ class _LoginCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Theme.of(context).dividerColor),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -160,21 +166,21 @@ class _LoginCard extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               '이메일',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
             ),
           ),
           const SizedBox(height: 6),
           TextField(
             controller: emailController,
             keyboardType: TextInputType.emailAddress,
-            decoration: _fieldDecoration('name@hospital.com'),
+            decoration: _fieldDecoration(context, 'name@hospital.com'),
           ),
           const SizedBox(height: 14),
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
               '비밀번호',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
             ),
           ),
           const SizedBox(height: 6),
@@ -182,7 +188,7 @@ class _LoginCard extends StatelessWidget {
             controller: passwordController,
             obscureText: true,
             onSubmitted: (_) => onSubmit(),
-            decoration: _fieldDecoration('비밀번호를 입력하세요'),
+            decoration: _fieldDecoration(context, '비밀번호를 입력하세요'),
           ),
           if (errorMessage != null) ...[
             const SizedBox(height: 12),
@@ -240,7 +246,7 @@ class _LoginCard extends StatelessWidget {
               },
               child: RichText(
                 text: TextSpan(
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
                   children: [
                     const TextSpan(text: '계정이 없으신가요? '),
                     TextSpan(
@@ -261,11 +267,11 @@ class _LoginCard extends StatelessWidget {
     );
   }
 
-  InputDecoration _fieldDecoration(String hint) {
+  InputDecoration _fieldDecoration(BuildContext context, String hint) {
     return InputDecoration(
       hintText: hint,
       filled: true,
-      fillColor: Colors.grey.shade50,
+      fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
     );

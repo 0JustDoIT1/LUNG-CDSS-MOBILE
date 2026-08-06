@@ -76,8 +76,8 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
             child: Column(
               children: [
                 SwitchListTile(
-                  activeColor: pointColor,
-                  secondary: _buildIconBox(Icons.screen_lock_portrait_rounded, iconBgColor: iconBgColor),
+                  activeThumbColor: pointColor,
+                  secondary: _buildIconBox(context, Icons.screen_lock_portrait_rounded, iconBgColor: iconBgColor),
                   title: const Text('화면 항상켜짐', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                   subtitle: const Text('업무 중 화면꺼짐 방지'),
                   value: settings.keepScreenOn,
@@ -87,17 +87,17 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
 
                 // 테마 선택 (바텀시트 호출)
                 ListTile(
-                  leading: _buildIconBox(Icons.brightness_6_rounded, iconBgColor: iconBgColor),
+                  leading: _buildIconBox(context, Icons.brightness_6_rounded, iconBgColor: iconBgColor),
                   title: const Text('테마', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         _getThemeLabel(settings.themeMode),
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                        style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
                       ),
                       const SizedBox(width: 4),
-                      Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                      Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
                     ],
                   ),
                   onTap: () => _showThemePicker(context, settings),
@@ -106,17 +106,17 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
 
                 // 글자 크기 선택 (바텀시트 호출)
                 ListTile(
-                  leading: _buildIconBox(Icons.format_size_rounded, iconBgColor: iconBgColor),
+                  leading: _buildIconBox(context, Icons.format_size_rounded, iconBgColor: iconBgColor),
                   title: const Text('글자 크기', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         _getFontScaleLabel(settings.fontScale),
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                        style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
                       ),
                       const SizedBox(width: 4),
-                      Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                      Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
                     ],
                   ),
                   onTap: () => _showFontScalePicker(context, settings),
@@ -145,8 +145,9 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
                       final isChecked = settings.notifications.values.elementAt(i);
 
                       return SwitchListTile(
-                        activeColor: pointColor,
+                        activeThumbColor: pointColor,
                         secondary: _buildIconBox(
+                          context,
                           _getNotificationIcon(categoryKey),
                           isActive: isChecked,
                           iconBgColor: iconBgColor,
@@ -181,11 +182,11 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
             ),
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              leading: _buildIconBox(Icons.widgets_outlined, isActive: true, iconBgColor: iconBgColor),
+              leading: _buildIconBox(context, Icons.widgets_outlined, isActive: true, iconBgColor: iconBgColor),
               title: const Text('홈스크린 위젯', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
               subtitle: Text(
                 '예약관리 요약을 홈화면에 바로 보여줘요. 기기 홈화면에서 직접 추가할 수 있어요.',
-                style: TextStyle(height: 1.4, fontSize: 13, color: isDark ? Colors.grey.shade400 : Colors.black54),
+                style: TextStyle(height: 1.4, fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
               ),
               isThreeLine: true,
             ),
@@ -204,16 +205,16 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
             child: Column(
               children: [
                 ListTile(
-                  leading: _buildIconBox(Icons.description_outlined, iconBgColor: iconBgColor),
+                  leading: _buildIconBox(context, Icons.description_outlined, iconBgColor: iconBgColor),
                   title: const Text('서비스 이용약관', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                  trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                  trailing: Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
                   onTap: () => _showPolicyModal(context, '서비스 이용약관', _termsOfServiceContent),
                 ),
                 Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
                 ListTile(
-                  leading: _buildIconBox(Icons.privacy_tip_outlined, iconBgColor: iconBgColor),
+                  leading: _buildIconBox(context, Icons.privacy_tip_outlined, iconBgColor: iconBgColor),
                   title: const Text('개인정보 처리방침', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                  trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                  trailing: Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
                   onTap: () => _showPolicyModal(context, '개인정보 처리방침', _privacyPolicyContent),
                 ),
               ],
@@ -234,7 +235,6 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
       case ThemeMode.dark:
         return '다크';
       case ThemeMode.system:
-      default:
         return '시스템';
     }
   }
@@ -264,7 +264,7 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade400,
+                  color: theme.colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -326,7 +326,7 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade400,
+                  color: theme.colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -372,7 +372,6 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
   /// 약관 및 정책 내용 보기 모달
   void _showPolicyModal(BuildContext context, String title, String content) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     showModalBottomSheet(
       context: context,
@@ -395,7 +394,7 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade400,
+                    color: theme.colorScheme.outlineVariant,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -427,7 +426,7 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
                       style: TextStyle(
                         fontSize: 14,
                         height: 1.6,
-                        color: isDark ? Colors.grey.shade300 : Colors.black87,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                   ),
@@ -461,7 +460,12 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
   }
 
   /// 아이콘 박스
-  Widget _buildIconBox(IconData icon, {bool isActive = true, required Color iconBgColor}) {
+  Widget _buildIconBox(
+    BuildContext context,
+    IconData icon, {
+    bool isActive = true,
+    required Color iconBgColor,
+  }) {
     return Container(
       width: 36,
       height: 36,
@@ -472,7 +476,7 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
       child: Icon(
         icon,
         size: 20,
-        color: isActive ? pointColor : Colors.grey.shade500,
+        color: isActive ? pointColor : Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
   }

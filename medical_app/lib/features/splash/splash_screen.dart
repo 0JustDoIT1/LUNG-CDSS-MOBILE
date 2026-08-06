@@ -28,7 +28,11 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          Container(width: double.infinity, height: double.infinity, color: Colors.white),
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: Theme.of(context).colorScheme.surface,
+          ),
           Positioned(
             top: -80,
             left: -60,
