@@ -174,13 +174,15 @@ class _SymptomRecordCard extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            record.nurseReviewed ? '간호사 확인 완료' : '확인 대기',
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.textSecondary,
+          if (record.memo?.isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            Text(
+              record.memo!,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

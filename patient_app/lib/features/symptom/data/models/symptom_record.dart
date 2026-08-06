@@ -5,9 +5,7 @@ class SymptomRecord {
     required this.checkedAt,
     required this.symptoms,
     required this.riskLevel,
-    required this.visibleToNurse,
-    required this.nurseReviewed,
-    required this.nurseReviewedAt,
+    required this.memo,
   });
 
   final String id;
@@ -15,9 +13,7 @@ class SymptomRecord {
   final DateTime checkedAt;
   final SymptomAnswers symptoms;
   final String riskLevel;
-  final bool visibleToNurse;
-  final bool nurseReviewed;
-  final DateTime? nurseReviewedAt;
+  final String? memo;
 
   DateTime get recordedAt => checkedAt;
 
@@ -27,27 +23,19 @@ class SymptomRecord {
     final checkedAtValue = json['checked_at'];
     final symptomsValue = json['symptoms'];
     final riskLevel = json['risk_level'];
-    final visibleToNurse = json['visible_to_nurse'];
-    final nurseReviewed = json['nurse_reviewed'];
-    final nurseReviewedAtValue = json['nurse_reviewed_at'];
+    final memo = json['memo'];
 
     if (id is! String ||
         (patientName != null && patientName is! String) ||
         checkedAtValue is! String ||
         symptomsValue is! Map<String, dynamic> ||
         riskLevel is! String ||
-        visibleToNurse is! bool ||
-        nurseReviewed is! bool ||
-        (nurseReviewedAtValue != null && nurseReviewedAtValue is! String)) {
+        (memo != null && memo is! String)) {
       throw const FormatException('증상 기록 필드 형식이 올바르지 않습니다.');
     }
 
     final checkedAt = DateTime.tryParse(checkedAtValue);
-    final nurseReviewedAt = nurseReviewedAtValue == null
-        ? null
-        : DateTime.tryParse(nurseReviewedAtValue);
-    if (checkedAt == null ||
-        (nurseReviewedAtValue != null && nurseReviewedAt == null)) {
+    if (checkedAt == null) {
       throw const FormatException('증상 기록 날짜 형식이 올바르지 않습니다.');
     }
 
@@ -57,9 +45,7 @@ class SymptomRecord {
       checkedAt: checkedAt,
       symptoms: SymptomAnswers.fromJson(symptomsValue),
       riskLevel: riskLevel,
-      visibleToNurse: visibleToNurse,
-      nurseReviewed: nurseReviewed,
-      nurseReviewedAt: nurseReviewedAt,
+      memo: memo as String?,
     );
   }
 }

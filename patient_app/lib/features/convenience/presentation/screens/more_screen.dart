@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/routes/route_names.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../home/presentation/providers/patient_provider.dart';
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({
@@ -12,6 +13,8 @@ class MoreScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profileState = ref.watch(patientProfileProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('더보기'),
@@ -49,26 +52,43 @@ class MoreScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 16),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '이대박',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
+                Expanded(
+                  child: profileState.when(
+                    loading: () => const Align(
+                      alignment: Alignment.centerLeft,
+                      child: SizedBox.square(
+                        dimension: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                      SizedBox(height: 6),
-                      Text(
-                        '환자번호 2026080301',
-                        style: TextStyle(
-                          color: Colors.grey,
+                    ),
+                    error: (error, stackTrace) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('프로필 정보를 불러오지 못했습니다.'),
+                        TextButton(
+                          onPressed: () =>
+                              ref.invalidate(patientProfileProvider),
+                          child: const Text('다시 시도'),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    data: (profile) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          profile.name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '환자번호 ${profile.patientNumber}',
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

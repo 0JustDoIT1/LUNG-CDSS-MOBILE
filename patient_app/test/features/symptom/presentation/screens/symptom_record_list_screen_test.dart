@@ -31,16 +31,14 @@ void main() {
     expect(find.text('아직 기록된 증상이 없습니다.'), findsOneWidget);
   });
 
-  testWidgets('shows risk labels, dates, and nurse review states', (
-    tester,
-  ) async {
+  testWidgets('shows risk labels, dates, and personal memo', (tester) async {
     await tester.pumpWidget(
       _app(
         () async => <SymptomRecord>[
-          _record(riskLevel: 'green', nurseReviewed: false),
-          _record(riskLevel: 'yellow', nurseReviewed: true, day: 4),
-          _record(riskLevel: 'red', nurseReviewed: false, day: 3),
-          _record(riskLevel: 'unknown', nurseReviewed: false, day: 2),
+          _record(riskLevel: 'green'),
+          _record(riskLevel: 'yellow', day: 4),
+          _record(riskLevel: 'red', day: 3),
+          _record(riskLevel: 'unknown', day: 2),
         ],
       ),
     );
@@ -51,8 +49,8 @@ void main() {
     expect(find.text('주의'), findsOneWidget);
     expect(find.text('위험'), findsOneWidget);
     expect(find.text('위험도 확인 필요'), findsOneWidget);
-    expect(find.text('간호사 확인 완료'), findsOneWidget);
-    expect(find.text('확인 대기'), findsNWidgets(3));
+    expect(find.text('개인 메모'), findsNWidgets(4));
+    expect(find.textContaining('간호사'), findsNothing);
     expect(find.textContaining('기침 약간'), findsWidgets);
   });
 
@@ -77,11 +75,7 @@ Widget _app(Future<List<SymptomRecord>> Function() loader) {
   );
 }
 
-SymptomRecord _record({
-  required String riskLevel,
-  required bool nurseReviewed,
-  int day = 5,
-}) {
+SymptomRecord _record({required String riskLevel, int day = 5}) {
   return SymptomRecord(
     id: '$riskLevel-$day',
     patientName: '홍길동',
@@ -97,8 +91,6 @@ SymptomRecord _record({
       fatigue: '약간',
     ),
     riskLevel: riskLevel,
-    visibleToNurse: true,
-    nurseReviewed: nurseReviewed,
-    nurseReviewedAt: nurseReviewed ? DateTime(2026, 8, day, 16) : null,
+    memo: '개인 메모',
   );
 }

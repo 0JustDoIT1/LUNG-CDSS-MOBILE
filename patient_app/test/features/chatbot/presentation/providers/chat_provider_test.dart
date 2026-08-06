@@ -8,7 +8,7 @@ import 'package:patient_app/data/repositories/chat_repository.dart';
 import 'package:patient_app/features/chatbot/presentation/providers/chat_provider.dart';
 
 void main() {
-  test('blocks empty input without calling repository', () async {
+  test('blocks empty and over-length input', () async {
     final repository = _FakeRepository();
     final container = _container(repository);
     addTearDown(container.dispose);
@@ -16,6 +16,12 @@ void main() {
 
     expect(
       await container.read(chatProvider.notifier).sendMessage('   '),
+      isFalse,
+    );
+    expect(
+      await container
+          .read(chatProvider.notifier)
+          .sendMessage(List<String>.filled(501, '가').join()),
       isFalse,
     );
     expect(repository.calls, 0);
@@ -32,7 +38,7 @@ void main() {
       isTrue,
     );
     final messages = container.read(chatProvider).requireValue;
-    expect(messages.map((item) => item.content), ['질문', '서버 답변']);
+    expect(messages.map((item) => item.content), ['질문', '서버 응답']);
     expect(messages.first.isUser, isTrue);
     expect(messages.last.isUser, isFalse);
   });
@@ -54,7 +60,10 @@ void main() {
   });
 
   test('keeps the user message on failure and retries it', () async {
-    final repository = _FakeRepository(failures: 1);
+    final repository = _FakeRepository(
+      failures: 1,
+      error: const ApiException(message: 'failed', statusCode: 429),
+    );
     final container = _container(repository);
     addTearDown(container.dispose);
     await container.read(chatProvider.future);
@@ -68,9 +77,42 @@ void main() {
 
     expect(await notifier.retryMessage(messages.last.id), isTrue);
     messages = container.read(chatProvider).requireValue;
-    expect(messages.map((item) => item.content), ['질문', '서버 답변']);
+    expect(messages.map((item) => item.content), ['질문', '서버 응답']);
     expect(repository.calls, 2);
   });
+
+  for (final testCase in <({ApiException error, String message})>[
+    (
+      error: ApiException(message: 'failed', code: 'CONNECTION_ERROR'),
+      message: '로컬 챗봇 서버에 연결할 수 없습니다. Genkit 서버 실행 상태를 확인해 주세요.',
+    ),
+    (
+      error: ApiException(message: 'failed', code: 'TIMEOUT'),
+      message: '답변 생성 시간이 초과되었습니다. 다시 시도해 주세요.',
+    ),
+    (
+      error: ApiException(message: 'failed', statusCode: 400),
+      message: '질문 내용을 확인해 주세요.',
+    ),
+    (
+      error: ApiException(message: 'failed', statusCode: 500),
+      message: '답변을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    ),
+  ]) {
+    test('shows the safe error message for ${testCase.error}', () async {
+      final repository = _FakeRepository(failures: 1, error: testCase.error);
+      final container = _container(repository);
+      addTearDown(container.dispose);
+      await container.read(chatProvider.future);
+
+      await container.read(chatProvider.notifier).sendMessage('질문');
+
+      expect(
+        container.read(chatProvider).requireValue.last.content,
+        testCase.message,
+      );
+    });
+  }
 }
 
 ProviderContainer _container(ChatRepository repository) {
@@ -82,9 +124,11 @@ ProviderContainer _container(ChatRepository repository) {
 }
 
 class _FakeRepository implements ChatRepository {
-  _FakeRepository({this.gate, this.failures = 0});
+  _FakeRepository({this.gate, this.failures = 0, this.error});
+
   final Future<void>? gate;
   final int failures;
+  final Object? error;
   int calls = 0;
 
   @override
@@ -95,12 +139,12 @@ class _FakeRepository implements ChatRepository {
     calls++;
     if (gate != null) await gate;
     if (calls <= failures) {
-      throw const ApiException(message: 'failed', statusCode: 429);
+      throw error ?? const ApiException(message: 'failed', statusCode: 500);
     }
     return ChatMessage(
       id: 'answer-$calls',
       sender: ChatSender.assistant,
-      content: '서버 답변',
+      content: '서버 응답',
       createdAt: DateTime(2026, 8, 5),
     );
   }

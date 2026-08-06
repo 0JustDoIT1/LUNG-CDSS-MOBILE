@@ -15,10 +15,12 @@ void main() {
         'weight_loss': '있음',
         'appetite': '감소',
         'fatigue': '약간',
+        'memo': '개인 기록',
       });
       expect(json, isNot(contains('chestPain')));
       expect(json, isNot(contains('weightLoss')));
-      expect(json, isNot(contains('memo')));
+      expect(json, isNot(contains('risk_level')));
+      expect(json, isNot(contains('visible_to_nurse')));
     });
 
     test('accepts every documented value for each field', () {
@@ -51,6 +53,15 @@ void main() {
     test('rejects an undocumented value', () {
       expect(() => _request(cough: 'medium'), throwsArgumentError);
     });
+
+    test('omits an empty memo and rejects more than 2000 characters', () {
+      expect(_request(memo: '').toJson(), isNot(contains('memo')));
+      expect(_request(memo: '   ').toJson(), isNot(contains('memo')));
+      expect(
+        () => _request(memo: List<String>.filled(2001, '가').join()),
+        throwsArgumentError,
+      );
+    });
   });
 }
 
@@ -63,6 +74,7 @@ SymptomSubmitRequest _request({
   String weightLoss = '있음',
   String appetite = '감소',
   String fatigue = '약간',
+  String? memo = '개인 기록',
 }) {
   return SymptomSubmitRequest(
     cough: cough,
@@ -73,5 +85,6 @@ SymptomSubmitRequest _request({
     weightLoss: weightLoss,
     appetite: appetite,
     fatigue: fatigue,
+    memo: memo,
   );
 }

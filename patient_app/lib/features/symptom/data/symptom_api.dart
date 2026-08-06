@@ -17,10 +17,17 @@ class SymptomApi {
     return data;
   }
 
-  Future<void> submitSymptoms(SymptomSubmitRequest request) async {
-    await _apiClient.post<void>(
+  Future<Map<String, dynamic>> submitSymptoms(
+    SymptomSubmitRequest request,
+  ) async {
+    final response = await _apiClient.post<dynamic>(
       '/api/symptoms/checks/',
       data: request.toJson(),
     );
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('증상 기록 저장 응답은 객체여야 합니다.');
+    }
+    return data;
   }
 }

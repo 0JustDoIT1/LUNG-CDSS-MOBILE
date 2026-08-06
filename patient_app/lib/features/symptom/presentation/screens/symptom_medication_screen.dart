@@ -451,13 +451,17 @@ class _SymptomRecordCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            record.nurseReviewed ? '간호사 확인 완료' : '확인 대기',
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.textSecondary,
+          if (record.memo?.isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            Text(
+              record.memo!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

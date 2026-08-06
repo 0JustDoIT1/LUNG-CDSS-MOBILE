@@ -8,6 +8,7 @@ class SymptomSubmitRequest {
     required this.weightLoss,
     required this.appetite,
     required this.fatigue,
+    this.memo,
   }) {
     _validate(cough, coughValues, 'cough');
     _validate(dyspnea, dyspneaValues, 'dyspnea');
@@ -17,6 +18,9 @@ class SymptomSubmitRequest {
     _validate(weightLoss, weightLossValues, 'weightLoss');
     _validate(appetite, appetiteValues, 'appetite');
     _validate(fatigue, fatigueValues, 'fatigue');
+    if (memo != null && memo!.length > 2000) {
+      throw ArgumentError.value(memo, 'memo', '2000자를 초과할 수 없습니다.');
+    }
   }
 
   static const coughValues = <String>{'없음', '약간', '심함'};
@@ -36,9 +40,10 @@ class SymptomSubmitRequest {
   final String weightLoss;
   final String appetite;
   final String fatigue;
+  final String? memo;
 
   Map<String, dynamic> toJson() {
-    return <String, dynamic>{
+    final json = <String, dynamic>{
       'cough': cough,
       'dyspnea': dyspnea,
       'hemoptysis': hemoptysis,
@@ -48,6 +53,10 @@ class SymptomSubmitRequest {
       'appetite': appetite,
       'fatigue': fatigue,
     };
+    if (memo != null && memo!.trim().isNotEmpty) {
+      json['memo'] = memo;
+    }
+    return json;
   }
 
   static void _validate(String value, Set<String> allowed, String field) {

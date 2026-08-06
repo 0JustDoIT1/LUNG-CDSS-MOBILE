@@ -35,11 +35,7 @@ void main() {
 
   group('SymptomApi.submitSymptoms', () {
     test('posts the exact request body to the checks endpoint', () async {
-      final client = _FakeApiClient(
-        responseData: <String, dynamic>{
-          'unmodeled': <String, dynamic>{'nested': true},
-        },
-      );
+      final client = _FakeApiClient(responseData: _recordJson);
       final api = SymptomApi(client);
 
       await api.submitSymptoms(_request);
@@ -48,10 +44,19 @@ void main() {
       expect(client.lastData, _request.toJson());
     });
 
-    test('does not parse a successful response body', () async {
+    test(
+      'returns a successful object response for repository parsing',
+      () async {
+        final api = SymptomApi(_FakeApiClient(responseData: _recordJson));
+
+        expect(await api.submitSymptoms(_request), same(_recordJson));
+      },
+    );
+
+    test('rejects a successful response that is not an object', () async {
       final api = SymptomApi(_FakeApiClient(responseData: 'unknown'));
 
-      await expectLater(api.submitSymptoms(_request), completes);
+      await expectLater(api.submitSymptoms(_request), throwsFormatException);
     });
 
     test('preserves an ApiException from ApiClient', () async {
@@ -72,7 +77,26 @@ final _request = SymptomSubmitRequest(
   weightLoss: '없음',
   appetite: '평소와 같음',
   fatigue: '없음',
+  memo: '개인 메모',
 );
+
+final _recordJson = <String, dynamic>{
+  'id': 'record-id',
+  'patient_name': null,
+  'checked_at': '2026-08-06T09:00:00+09:00',
+  'symptoms': <String, dynamic>{
+    'cough': '없음',
+    'dyspnea': '없음',
+    'hemoptysis': '없음',
+    'chest_pain': '없음',
+    'fever': '없음',
+    'weight_loss': '없음',
+    'appetite': '평소와 같음',
+    'fatigue': '없음',
+  },
+  'memo': '개인 메모',
+  'risk_level': 'green',
+};
 
 class _FakeApiClient extends ApiClient {
   _FakeApiClient({this.responseData, this.error}) : super(dio: Dio());

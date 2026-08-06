@@ -38,13 +38,15 @@ void main() {
   });
 
   group('SymptomRepository.submitSymptoms', () {
-    test('completes after the API succeeds', () async {
+    test('parses the created record after the API succeeds', () async {
       final api = _FakeSymptomApi();
       final repository = SymptomRepository(api);
 
-      await repository.submitSymptoms(_request);
+      final record = await repository.submitSymptoms(_request);
 
       expect(api.receivedRequest, same(_request));
+      expect(record.id, 'created-record');
+      expect(record.memo, '개인 메모');
     });
 
     test('preserves an ApiException', () async {
@@ -89,10 +91,31 @@ class _FakeSymptomApi extends SymptomApi {
   }
 
   @override
-  Future<void> submitSymptoms(SymptomSubmitRequest request) async {
+  Future<Map<String, dynamic>> submitSymptoms(
+    SymptomSubmitRequest request,
+  ) async {
     if (error != null) {
       throw error!;
     }
     receivedRequest = request;
+    return _createdRecordJson;
   }
 }
+
+final _createdRecordJson = <String, dynamic>{
+  'id': 'created-record',
+  'patient_name': null,
+  'checked_at': '2026-08-06T09:00:00+09:00',
+  'symptoms': <String, dynamic>{
+    'cough': '없음',
+    'dyspnea': '없음',
+    'hemoptysis': '없음',
+    'chest_pain': '없음',
+    'fever': '없음',
+    'weight_loss': '없음',
+    'appetite': '평소와 같음',
+    'fatigue': '없음',
+  },
+  'memo': '개인 메모',
+  'risk_level': 'green',
+};

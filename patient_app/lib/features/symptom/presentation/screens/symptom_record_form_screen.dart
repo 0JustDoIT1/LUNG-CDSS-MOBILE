@@ -30,6 +30,7 @@ class _SymptomRecordFormScreenState
     'appetite': null,
     'fatigue': null,
   };
+  final Map<String, String> _fieldErrors = <String, String>{};
 
   bool get _isComplete => _values.values.every((value) => value != null);
 
@@ -53,20 +54,29 @@ class _SymptomRecordFormScreenState
       weightLoss: _values['weightLoss']!,
       appetite: _values['appetite']!,
       fatigue: _values['fatigue']!,
+      memo: _memoController.text,
     );
 
     try {
+      setState(_fieldErrors.clear);
       await ref.read(symptomSubmitProvider.notifier).submit(request);
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('증상 정보가 제출되었습니다.')));
+      ).showSnackBar(const SnackBar(content: Text('증상 기록이 저장되었습니다.')));
       context.pop();
     } catch (error) {
       if (!mounted) {
         return;
+      }
+      if (error is ApiException && error.statusCode == 400) {
+        setState(() {
+          _fieldErrors
+            ..clear()
+            ..addAll(_validationErrors(error.details));
+        });
       }
       ScaffoldMessenger.of(
         context,
@@ -77,13 +87,16 @@ class _SymptomRecordFormScreenState
   static String _errorMessage(Object error) {
     if (error is ApiException) {
       if (error.statusCode == 400) {
-        return '입력한 증상 정보를 확인해 주세요.';
+        return error.message;
       }
       if (error.statusCode == 401) {
         return '인증 정보가 만료됐거나 유효하지 않습니다.';
       }
       if (error.statusCode == 403) {
-        return '증상 정보를 제출할 권한이 없습니다.';
+        return '환자 계정에서만 증상 기록을 이용할 수 있습니다.';
+      }
+      if (error.statusCode == 409) {
+        return '오늘의 증상 기록이 이미 등록되어 있습니다.';
       }
       if (error.code == 'TIMEOUT') {
         return '요청 시간이 초과되었습니다.';
@@ -92,7 +105,34 @@ class _SymptomRecordFormScreenState
         return '네트워크 연결을 확인해 주세요.';
       }
     }
-    return '증상 정보를 제출하지 못했습니다.';
+    return '증상 기록을 저장하지 못했습니다.';
+  }
+
+  static Map<String, String> _validationErrors(Object? details) {
+    if (details is! Map) return const <String, String>{};
+    const fieldKeys = <String, String>{
+      'cough': 'cough',
+      'dyspnea': 'dyspnea',
+      'hemoptysis': 'hemoptysis',
+      'chest_pain': 'chestPain',
+      'fever': 'fever',
+      'weight_loss': 'weightLoss',
+      'appetite': 'appetite',
+      'fatigue': 'fatigue',
+      'memo': 'memo',
+    };
+    final errors = <String, String>{};
+    for (final entry in details.entries) {
+      final field = fieldKeys[entry.key];
+      final messages = entry.value;
+      if (field != null &&
+          messages is List &&
+          messages.isNotEmpty &&
+          messages.first is String) {
+        errors[field] = messages.first as String;
+      }
+    }
+    return errors;
   }
 
   @override
@@ -108,7 +148,7 @@ class _SymptomRecordFormScreenState
             const Text('현재 증상을 모두 선택해주세요', style: AppTextStyles.headlineMedium),
             const SizedBox(height: 8),
             Text(
-              '각 항목은 서버에서 허용하는 선택지로 제출됩니다.',
+              '선택한 증상은 본인의 증상 기록으로 안전하게 저장됩니다.',
               style: AppTextStyles.bodyMedium.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -144,12 +184,15 @@ class _SymptomRecordFormScreenState
               controller: _memoController,
               minLines: 3,
               maxLines: 5,
-              maxLength: 300,
-              decoration: const InputDecoration(hintText: '개인 메모를 입력할 수 있습니다.'),
+              maxLength: 2000,
+              decoration: InputDecoration(
+                hintText: '개인 메모를 입력할 수 있습니다.',
+                errorText: _fieldErrors['memo'],
+              ),
             ),
             const SizedBox(height: 24),
             AppButton(
-              text: '증상 제출',
+              text: '증상 기록 저장',
               isLoading: isSubmitting,
               onPressed: !_isComplete || isSubmitting ? null : _submit,
             ),
@@ -198,10 +241,22 @@ class _SymptomRecordFormScreenState
                 return ChoiceChip(
                   label: Text(option),
                   selected: _values[key] == option,
-                  onSelected: (_) => setState(() => _values[key] = option),
+                  onSelected: (_) => setState(() {
+                    _values[key] = option;
+                    _fieldErrors.remove(key);
+                  }),
                 );
               }).toList(),
             ),
+            if (_fieldErrors[key] != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _fieldErrors[key]!,
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -3,7 +3,7 @@ import 'package:patient_app/features/symptom/data/models/symptom_record.dart';
 
 void main() {
   group('SymptomRecord.fromJson', () {
-    test('parses all symptom, risk, and review fields', () {
+    test('parses all symptom, memo, and risk fields', () {
       final record = SymptomRecord.fromJson(_json());
 
       expect(record.id, 'record-id');
@@ -18,9 +18,7 @@ void main() {
       expect(record.symptoms.appetite, '평소와 같음');
       expect(record.symptoms.fatigue, '약간');
       expect(record.riskLevel, 'green');
-      expect(record.visibleToNurse, isTrue);
-      expect(record.nurseReviewed, isFalse);
-      expect(record.nurseReviewedAt, isNull);
+      expect(record.memo, '오늘은 기침이 조금 심합니다.');
     });
 
     for (final risk in ['green', 'yellow', 'red', 'unknown']) {
@@ -29,15 +27,10 @@ void main() {
       });
     }
 
-    test('parses a reviewed timestamp', () {
-      final record = SymptomRecord.fromJson(
-        _json(reviewed: true, reviewedAt: '2026-08-05T16:00:00+09:00'),
-      );
-      expect(record.nurseReviewed, isTrue);
-      expect(
-        record.nurseReviewedAt,
-        DateTime.parse('2026-08-05T16:00:00+09:00'),
-      );
+    test('allows a null or missing memo', () {
+      expect(SymptomRecord.fromJson(_json()..['memo'] = null).memo, isNull);
+      final withoutMemo = _json()..remove('memo');
+      expect(SymptomRecord.fromJson(withoutMemo).memo, isNull);
     });
 
     test('rejects invalid required fields and dates', () {
@@ -53,11 +46,7 @@ void main() {
   });
 }
 
-Map<String, dynamic> _json({
-  String risk = 'green',
-  bool reviewed = false,
-  String? reviewedAt,
-}) => <String, dynamic>{
+Map<String, dynamic> _json({String risk = 'green'}) => <String, dynamic>{
   'id': 'record-id',
   'patient_name': '홍길동',
   'checked_at': '2026-08-05T15:30:00+09:00',
@@ -72,7 +61,5 @@ Map<String, dynamic> _json({
     'fatigue': '약간',
   },
   'risk_level': risk,
-  'visible_to_nurse': true,
-  'nurse_reviewed': reviewed,
-  'nurse_reviewed_at': reviewedAt,
+  'memo': '오늘은 기침이 조금 심합니다.',
 };

@@ -63,6 +63,12 @@ class AppointmentListScreen extends ConsumerWidget {
                     isCancelling: cancellingAppointmentIds.contains(
                       appointment.id,
                     ),
+                    onTap: () => context.push(
+                      RouteNames.appointmentDetail.replaceFirst(
+                        ':appointmentId',
+                        Uri.encodeComponent(appointment.id),
+                      ),
+                    ),
                     onCancel: () =>
                         _confirmAndCancel(context, ref, appointment.id),
                   );
@@ -346,11 +352,13 @@ class _AppointmentCard extends StatelessWidget {
   const _AppointmentCard({
     required this.appointment,
     required this.isCancelling,
+    required this.onTap,
     required this.onCancel,
   });
 
   final PatientAppointment appointment;
   final bool isCancelling;
+  final VoidCallback onTap;
   final VoidCallback onCancel;
 
   @override
@@ -359,84 +367,93 @@ class _AppointmentCard extends StatelessWidget {
     final appointmentAt =
         appointment.confirmedSlot ?? appointment.requestedAtSlot;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
+        side: const BorderSide(color: AppColors.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Icon(Icons.calendar_month_outlined, color: statusColor),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      appointment.department,
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+              Row(
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(15),
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      appointment.doctorName,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
+                    child: Icon(
+                      Icons.calendar_month_outlined,
+                      color: statusColor,
                     ),
-                  ],
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          appointment.department,
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          appointment.doctorName,
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _StatusBadge(
+                    label: _statusLabel(appointment.status),
+                    color: statusColor,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                _formatDate(appointmentAt),
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              _StatusBadge(
-                label: _statusLabel(appointment.status),
-                color: statusColor,
+              const SizedBox(height: 6),
+              Text(
+                appointment.confirmedSlot == null ? '요청 일시' : '확정 일시',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
+              if (_canCancel(appointment.status)) ...[
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: isCancelling ? null : onCancel,
+                    child: isCancelling
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('예약 취소'),
+                  ),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 18),
-          Text(
-            _formatDate(appointmentAt),
-            style: AppTextStyles.bodyMedium.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            appointment.confirmedSlot == null ? '요청 일시' : '확정 일시',
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          if (_canCancel(appointment.status)) ...[
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: isCancelling ? null : onCancel,
-                child: isCancelling
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('예약 취소'),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

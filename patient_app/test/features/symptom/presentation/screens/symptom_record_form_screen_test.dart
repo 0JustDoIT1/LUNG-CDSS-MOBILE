@@ -8,15 +8,31 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: SymptomRecordFormScreen()),
-      ),
+      const ProviderScope(child: MaterialApp(home: SymptomRecordFormScreen())),
     );
 
-    expect(find.text('증상 제출'), findsOneWidget);
+    expect(find.textContaining('본인의 증상 기록'), findsOneWidget);
+
+    final buttonText = find.text('증상 기록 저장');
+    await tester.scrollUntilVisible(
+      buttonText,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(buttonText, findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    final memoField = tester.widget<TextField>(find.byType(TextField));
+    expect(memoField.maxLength, 2000);
+
     expect(find.text('모든 증상 항목을 선택해 주세요.'), findsOneWidget);
 
-    final button = tester.widget<FilledButton>(find.byType(FilledButton));
+    final filledButtonFinder = find.ancestor(
+      of: buttonText,
+      matching: find.byType(FilledButton),
+    );
+    expect(filledButtonFinder, findsOneWidget);
+    final button = tester.widget<FilledButton>(filledButtonFinder);
     expect(button.onPressed, isNull);
   });
 }

@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class PatientQrScreen extends StatelessWidget {
+import '../../../home/presentation/providers/patient_provider.dart';
+
+class PatientQrScreen extends ConsumerWidget {
   const PatientQrScreen({
     super.key,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileState = ref.watch(patientProfileProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('진료카드 QR'),
@@ -74,24 +79,36 @@ class PatientQrScreen extends StatelessWidget {
                       child: const _MockQrCode(),
                     ),
                     const SizedBox(height: 24),
-                    Text(
-                      '이대박',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(
-                            fontWeight: FontWeight.w700,
+                    profileState.when(
+                      loading: () => const SizedBox.square(
+                        dimension: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      error: (error, stackTrace) => Column(
+                        children: [
+                          const Text('프로필 정보를 불러오지 못했습니다.'),
+                          TextButton(
+                            onPressed: () =>
+                                ref.invalidate(patientProfileProvider),
+                            child: const Text('다시 시도'),
                           ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '환자번호 2026080301',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(
-                            color: Colors.grey.shade700,
+                        ],
+                      ),
+                      data: (profile) => Column(
+                        children: [
+                          Text(
+                            profile.name,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w700),
                           ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '환자번호 ${profile.patientNumber}',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: Colors.grey.shade700),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

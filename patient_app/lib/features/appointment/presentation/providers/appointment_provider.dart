@@ -64,20 +64,21 @@ class AppointmentsNotifier extends AsyncNotifier<List<Appointment>> {
   }
 }
 
-final appointmentDetailProvider = FutureProvider.family<Appointment?, String>((
-  ref,
-  appointmentId,
-) async {
-  final appointments = await ref.watch(appointmentsProvider.future);
+final appointmentDetailProvider =
+    FutureProvider.family<PatientAppointment?, String>((
+      ref,
+      appointmentId,
+    ) async {
+      final appointments = await ref.watch(myAppointmentsProvider.future);
 
-  for (final appointment in appointments) {
-    if (appointment.id == appointmentId) {
-      return appointment;
-    }
-  }
+      for (final appointment in appointments) {
+        if (appointment.id == appointmentId) {
+          return appointment;
+        }
+      }
 
-  return null;
-});
+      return null;
+    });
 
 final appointmentApiProvider = Provider<AppointmentApi>((ref) {
   final apiClient = ref.watch(apiClientProvider);

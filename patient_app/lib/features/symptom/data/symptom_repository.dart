@@ -19,7 +19,8 @@ class SymptomRepository {
         .toList(growable: false);
   }
 
-  Future<void> submitSymptoms(SymptomSubmitRequest request) {
-    return _symptomApi.submitSymptoms(request);
+  Future<SymptomRecord> submitSymptoms(SymptomSubmitRequest request) async {
+    final record = await _symptomApi.submitSymptoms(request);
+    return SymptomRecord.fromJson(record);
   }
 }
