@@ -43,7 +43,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
       final list = await fetchNotifications(token, AppNotification.fromJson);
       if (!mounted) return;
       setState(() {
-        _notifications = list;
+        // 채팅 알림은 채팅탭에서 이미 안읽음 표시로 보여주고 있어서 알림함에서는 제외.
+        _notifications = list.where((n) => n.type != NotificationType.chat).toList();
         _isLoading = false;
       });
     } on ApiException catch (e) {

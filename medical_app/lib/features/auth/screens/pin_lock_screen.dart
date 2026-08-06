@@ -5,18 +5,21 @@ import '../../../core/security/security_settings_controller.dart';
 import '../../../core/theme/app_theme.dart';
 import 'biometric_auth_screen.dart';
 
-/// 앱 잠금 PIN 화면 — patient_app 보안설정과 동일한 목업.
-/// 실제 서버/저장소 연동 없이 "1234" 고정 PIN으로만 통과됨.
+/// 앱 잠금 PIN 화면.
+/// - [PinLockMode.unlock] (기본): 로그인 유지 상태에서 앱을 다시 열 때 — 맞으면 세션 잠금해제.
+/// - [PinLockMode.verifyOnly]: 설정화면에서 "PIN 변경" 진입 시 현재 PIN 확인용 — 맞으면 true로 pop.
 class PinLockScreen extends StatefulWidget {
-  const PinLockScreen({super.key});
+  final PinLockMode mode;
+
+  const PinLockScreen({super.key, this.mode = PinLockMode.unlock});
 
   @override
   State<PinLockScreen> createState() => _PinLockScreenState();
 }
 
-class _PinLockScreenState extends State<PinLockScreen> {
-  static const _correctPin = '1234';
+enum PinLockMode { unlock, verifyOnly }
 
+class _PinLockScreenState extends State<PinLockScreen> {
   String _pin = '';
   bool _isLoading = false;
   String? _errorText;
@@ -29,10 +32,11 @@ class _PinLockScreenState extends State<PinLockScreen> {
       _errorText = null;
     });
 
-    await Future<void>.delayed(const Duration(milliseconds: 400));
+    await Future<void>.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
 
-    if (_pin != _correctPin) {
+    final security = context.read<SecuritySettingsController>();
+    if (!security.verifyPin(_pin)) {
       setState(() {
         _isLoading = false;
         _pin = '';
@@ -41,7 +45,12 @@ class _PinLockScreenState extends State<PinLockScreen> {
       return;
     }
 
-    context.read<SecuritySettingsController>().markUnlocked();
+    if (widget.mode == PinLockMode.verifyOnly) {
+      if (Navigator.of(context).canPop()) Navigator.of(context).pop(true);
+      return;
+    }
+
+    security.markUnlocked();
     // 성공하면 라우터 redirect가 자동으로 홈으로 넘겨줌 — 여기서 직접 이동 안 함.
   }
 
@@ -98,8 +107,10 @@ class _PinLockScreenState extends State<PinLockScreen> {
   Widget build(BuildContext context) {
     final security = context.watch<SecuritySettingsController>();
     final colorScheme = Theme.of(context).colorScheme;
+    final isVerifyOnly = widget.mode == PinLockMode.verifyOnly;
 
     return Scaffold(
+      appBar: isVerifyOnly ? AppBar(title: const Text('현재 PIN 확인')) : null,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -110,14 +121,16 @@ class _PinLockScreenState extends State<PinLockScreen> {
                 children: [
                   const Icon(Icons.lock_outline_rounded, size: 56, color: AppTheme.gradientEnd),
                   const SizedBox(height: 20),
-                  const Text(
-                    'PIN 번호를 입력해주세요',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    isVerifyOnly ? '현재 PIN 번호를 입력해주세요' : 'PIN 번호를 입력해주세요',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '앱 잠금 해제를 위해 4자리 PIN을 입력해주세요.',
+                    isVerifyOnly
+                        ? 'PIN을 변경하려면 먼저 현재 PIN을 확인해야 해요.'
+                        : '앱 잠금 해제를 위해 4자리 PIN을 입력해주세요.',
                     style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
                     textAlign: TextAlign.center,
                   ),
@@ -165,7 +178,7 @@ class _PinLockScreenState extends State<PinLockScreen> {
                       ),
                     ],
                   ),
-                  if (security.biometricEnabled) ...[
+                  if (!isVerifyOnly && security.biometricEnabled) ...[
                     const SizedBox(height: 20),
                     TextButton.icon(
                       onPressed: () {
@@ -177,11 +190,6 @@ class _PinLockScreenState extends State<PinLockScreen> {
                       label: const Text('생체인증으로 잠금 해제'),
                     ),
                   ],
-                  const SizedBox(height: 16),
-                  Text(
-                    '테스트 PIN: 1234',
-                    style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6), fontSize: 11),
-                  ),
                 ],
               ),
             ),

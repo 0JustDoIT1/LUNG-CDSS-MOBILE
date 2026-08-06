@@ -4,16 +4,14 @@ import 'package:provider/provider.dart';
 import '../../../../core/api/appointments_api.dart';
 import '../../../../core/api/auth_api.dart';
 import '../../../../core/api/medications_api.dart';
-import '../../../../core/api/symptoms_api.dart';
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/lifecycle/app_resume_notifier.dart';
+import '../../../../core/widget/home_widget_service.dart';
 import '../../../../main.dart';
 import '../../models/reservation.dart';
 import '../care_plan_medication_screen.dart';
-import '../symptom_checks_screen.dart';
 
 /// 탭 3(중앙): 홈 대시보드.
-/// "담당환자 이상 신호"(GET /api/symptoms/checks/nurse-visible/),
 /// "케어플랜 처리 필요"(GET /api/medications/pending-setup/) 실제 API 연동됨.
 /// 나머지(예약요약/다음방문)는 아직 mock.
 /// 포그라운드 푸시 수신 + 앱 재개(resume) 시 새로고침으로 자동 반영됨.
@@ -27,43 +25,46 @@ class NurseHomeTab extends StatefulWidget {
 }
 
 class _NurseHomeTabState extends State<NurseHomeTab> {
-  List<SymptomCheck> _riskChecks = [];
   List<PendingMedicationSetupPatient> _pendingSetup = [];
   List<Appointment> _queue = [];
   List<Appointment> _todayVisits = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRisk());
-    fcmService.incomingMessage.addListener(_loadRisk);
-    appResumeNotifier.addListener(_loadRisk);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    fcmService.incomingMessage.addListener(_refresh);
+    appResumeNotifier.addListener(_refresh);
   }
 
   @override
   void dispose() {
-    fcmService.incomingMessage.removeListener(_loadRisk);
-    appResumeNotifier.removeListener(_loadRisk);
+    fcmService.incomingMessage.removeListener(_refresh);
+    appResumeNotifier.removeListener(_refresh);
     super.dispose();
   }
 
-  Future<void> _loadRisk() async {
+  /// 최초 진입 시에만 스피너를 보여주고 조회 — 0건으로 먼저 그려졌다가 실제 값으로
+  /// 바뀌는(한 박자 늦게 뜨는) 게 보이지 않도록.
+  Future<void> _load() async {
+    await _refresh();
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+  }
+
+  /// 3개 API를 동시에 쏴서(순차 await이면 응답시간이 다 더해짐) 기다린다.
+  /// 섹션별로 실패해도 나머지는 계속 보여줘야 해서 각자 따로 try/catch.
+  Future<void> _refresh() async {
     final token = context.read<SessionController>().accessToken;
     if (token == null) return;
-    try {
-      final checks = await fetchNurseVisibleSymptomChecks(token);
-      checks.sort((a, b) {
-        if (a.isRed != b.isRed) return a.isRed ? -1 : 1;
-        return b.checkedAt.compareTo(a.checkedAt);
-      });
-      if (!mounted) return;
-      setState(() => _riskChecks = checks.where((c) => !c.nurseReviewed).toList());
-    } on ApiException catch (_) {
-      // 조용히 무시 — 이 섹션만 비어보이면 됨
-    }
+
+    final pendingFuture = fetchPendingMedicationSetupPatients(token);
+    final queueFuture = fetchAppointmentQueue(token);
+    final visitsFuture = fetchTodayVisits(token);
 
     try {
-      final pendingSetup = await fetchPendingMedicationSetupPatients(token);
+      final pendingSetup = await pendingFuture;
       if (!mounted) return;
       setState(() => _pendingSetup = pendingSetup);
     } on ApiException catch (_) {
@@ -71,15 +72,16 @@ class _NurseHomeTabState extends State<NurseHomeTab> {
     }
 
     try {
-      final queue = await fetchAppointmentQueue(token);
+      final queue = await queueFuture;
       if (!mounted) return;
       setState(() => _queue = queue);
+      updatePendingAppointmentsWidget(requestCount: queue.length);
     } on ApiException catch (_) {
       // 조용히 무시 — 카운트만 0으로 표시됨
     }
 
     try {
-      final visits = await fetchTodayVisits(token);
+      final visits = await visitsFuture;
       if (!mounted) return;
       setState(() => _todayVisits = visits);
     } on ApiException catch (_) {
@@ -107,82 +109,59 @@ class _NurseHomeTabState extends State<NurseHomeTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 인사말은 네트워크 응답을 기다릴 필요가 없으니 항상 즉시 표시.
             _GreetingHeader(),
             const SizedBox(height: 18),
-            _SummaryRow(
-              pendingRequestCount: _queue.length,
-              unprocessedTodayCount: _unprocessedTodayVisits.length,
-              onNavigateToTab: widget.onNavigateToTab,
-            ),
-            const SizedBox(height: 16),
-            _NextVisitCard(appointment: _nextVisit),
-            const SizedBox(height: 24),
-            
-            /// 의료진이 가장 먼저 주시해야 하는 [이상 신호] 섹션
-            _SectionTitle(
-              '담당환자 이상 신호',
-              count: _riskChecks.length,
-              badgeColor: Colors.red.shade600,
-            ),
-            const SizedBox(height: 10),
-            if (_riskChecks.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.check_circle_outline_rounded, color: Colors.green.shade600, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      '현재 확인이 필요한 위험 신호가 없습니다',
-                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13, fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
+            if (_isLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(child: CircularProgressIndicator()),
               )
-            else
-              ..._riskChecks.take(3).map((c) => _AlertPatientTile(check: c)),
-            const SizedBox(height: 24),
+            else ...[
+              _SummaryRow(
+                pendingRequestCount: _queue.length,
+                unprocessedTodayCount: _unprocessedTodayVisits.length,
+                onNavigateToTab: widget.onNavigateToTab,
+              ),
+              const SizedBox(height: 16),
+              _NextVisitCard(appointment: _nextVisit),
+              const SizedBox(height: 24),
 
-            /// 케어플랜 처리 필요 섹션
-            _SectionTitle(
-              '케어플랜 처리 필요',
-              count: _pendingSetup.length,
-              badgeColor: const Color(0xFF2B78D4),
-            ),
-            const SizedBox(height: 10),
-            if (_pendingSetup.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.assignment_turned_in_outlined, color: Colors.blue.shade600, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      '복약설정이 필요한 환자가 없습니다',
-                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13, fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
-              )
-            else
-              ..._pendingSetup.map((p) => _CarePlanTile(
-                    name: p.name,
-                    subtitle: '치료계획 확정 · 복약설정 대기',
-                    patientId: p.id,
-                    onReturn: _loadRisk,
-                  )),
+              /// 케어플랜 처리 필요 섹션
+              _SectionTitle(
+                '케어플랜 처리 필요',
+                count: _pendingSetup.length,
+                badgeColor: const Color(0xFF2B78D4),
+              ),
+              const SizedBox(height: 10),
+              if (_pendingSetup.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.assignment_turned_in_outlined, color: Colors.blue.shade600, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        '복약설정이 필요한 환자가 없습니다',
+                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ..._pendingSetup.map((p) => _CarePlanTile(
+                      name: p.name,
+                      subtitle: '치료계획 확정 · 복약설정 대기',
+                      patientId: p.id,
+                      onReturn: _refresh,
+                    )),
+            ],
           ],
         ),
       ),
@@ -756,118 +735,6 @@ class _CarePlanTile extends StatelessWidget {
                       color: Colors.white,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 담당환자 이상 신호 타일 (위험 RED / 주의 YELLOW)
-class _AlertPatientTile extends StatelessWidget {
-  final SymptomCheck check;
-
-  const _AlertPatientTile({required this.check});
-
-  @override
-  Widget build(BuildContext context) {
-    final isRed = check.isRed;
-    final mainColor = isRed ? Colors.red.shade600 : Colors.orange.shade800;
-    final bgColor = isRed ? Colors.red.shade50 : Colors.orange.shade50;
-    final borderColor = isRed ? Colors.red.shade200 : Colors.orange.shade200;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: mainColor.withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SymptomChecksScreen()),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: mainColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    isRed ? Icons.warning_amber_rounded : Icons.priority_high_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            check.patientName,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Colors.grey.shade900,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: mainColor,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              isRed ? '위험 (RED)' : '주의 (YELLOW)',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isRed ? '증상 악화 신호 감지 · 즉시 확인 필요' : '주의 관찰 필요 신호 감지',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: mainColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  size: 16,
-                  color: mainColor,
                 ),
               ],
             ),

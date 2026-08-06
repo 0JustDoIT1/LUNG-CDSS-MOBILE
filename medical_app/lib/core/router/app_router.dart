@@ -7,6 +7,7 @@ import '../security/security_settings_controller.dart';
 import '../../features/auth/screens/biometric_auth_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/pin_lock_screen.dart';
+import '../../features/auth/screens/pin_setup_screen.dart';
 import '../../features/doctor/screens/doctor_home_screen.dart';
 import '../../features/nurse/screens/nurse_home_screen.dart';
 import '../../features/splash/splash_screen.dart';
@@ -28,16 +29,21 @@ GoRouter buildRouter(SessionController session, SecuritySettingsController secur
       final atLogin = state.matchedLocation == '/login';
       final atSplash = state.matchedLocation == '/splash';
       final atPinLock = state.matchedLocation == '/pin-lock';
+      final atPinSetup = state.matchedLocation == '/pin-setup';
       final atBiometric = state.matchedLocation == '/biometric-auth';
 
       if (!loggedIn) return (atLogin || atSplash) ? null : '/login';
 
       if (security.needsUnlock) {
+        // PIN을 아직 설정 안 했으면(최초 실행) 잠금해제 대신 PIN 설정부터 시켜야 함.
+        if (security.needsPinSetup) {
+          return atPinSetup ? null : '/pin-setup';
+        }
         if (atPinLock || atBiometric) return null;
         return security.biometricEnabled ? '/biometric-auth' : '/pin-lock';
       }
 
-      if (atLogin || atSplash || atPinLock || atBiometric) {
+      if (atLogin || atSplash || atPinLock || atPinSetup || atBiometric) {
         return session.role == UserRole.doctor ? '/doctor' : '/nurse';
       }
       return null;
@@ -54,6 +60,10 @@ GoRouter buildRouter(SessionController session, SecuritySettingsController secur
       GoRoute(
         path: '/pin-lock',
         builder: (context, state) => const PinLockScreen(),
+      ),
+      GoRoute(
+        path: '/pin-setup',
+        builder: (context, state) => const PinSetupScreen(),
       ),
       GoRoute(
         path: '/biometric-auth',

@@ -22,6 +22,10 @@ class QueueTab extends StatefulWidget {
 class _QueueTabState extends State<QueueTab> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
+  /// "예약요청"에서 승인/반려하면 값을 올려서 "진료관리" 탭이 조용히 새로고침하도록 알려준다.
+  /// 두 탭이 서로 다른 State를 가진 별개 위젯이라, 승인해도 진료관리 쪽엔 저절로 반영이 안 됨.
+  final ValueNotifier<int> _visitsRefreshSignal = ValueNotifier(0);
+
   @override
   void initState() {
     super.initState();
@@ -31,6 +35,7 @@ class _QueueTabState extends State<QueueTab> with SingleTickerProviderStateMixin
   @override
   void dispose() {
     _tabController.dispose();
+    _visitsRefreshSignal.dispose();
     super.dispose();
   }
 
@@ -51,9 +56,9 @@ class _QueueTabState extends State<QueueTab> with SingleTickerProviderStateMixin
         Expanded(
           child: TabBarView(
             controller: _tabController,
-            children: const [
-              _RequestQueueView(),
-              _TodayVisitsView(),
+            children: [
+              _RequestQueueView(onApprovedOrRejected: () => _visitsRefreshSignal.value++),
+              _TodayVisitsView(refreshSignal: _visitsRefreshSignal),
             ],
           ),
         ),
@@ -64,7 +69,9 @@ class _QueueTabState extends State<QueueTab> with SingleTickerProviderStateMixin
 
 /// 예약요청 탭 — status=requested인 예약들, 승인/반려.
 class _RequestQueueView extends StatefulWidget {
-  const _RequestQueueView();
+  final VoidCallback onApprovedOrRejected;
+
+  const _RequestQueueView({required this.onApprovedOrRejected});
 
   @override
   State<_RequestQueueView> createState() => _RequestQueueViewState();
@@ -133,6 +140,7 @@ class _RequestQueueViewState extends State<_RequestQueueView> {
     try {
       await approveAppointment(a.id, token);
       _load();
+      widget.onApprovedOrRejected(); // 진료관리 탭의 "대기중" 목록도 새로고침
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
@@ -145,6 +153,7 @@ class _RequestQueueViewState extends State<_RequestQueueView> {
     try {
       await cancelAppointment(a.id, token);
       _load();
+      widget.onApprovedOrRejected();
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
@@ -320,7 +329,9 @@ class _RequestQueueViewState extends State<_RequestQueueView> {
 
 /// 진료관리 탭 — 오늘 예약들, 방문처리/미방문처리.
 class _TodayVisitsView extends StatefulWidget {
-  const _TodayVisitsView();
+  final Listenable refreshSignal;
+
+  const _TodayVisitsView({required this.refreshSignal});
 
   @override
   State<_TodayVisitsView> createState() => _TodayVisitsViewState();
@@ -337,12 +348,14 @@ class _TodayVisitsViewState extends State<_TodayVisitsView> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
     fcmService.incomingMessage.addListener(_silentRefresh);
     appResumeNotifier.addListener(_silentRefresh);
+    widget.refreshSignal.addListener(_silentRefresh);
   }
 
   @override
   void dispose() {
     fcmService.incomingMessage.removeListener(_silentRefresh);
     appResumeNotifier.removeListener(_silentRefresh);
+    widget.refreshSignal.removeListener(_silentRefresh);
     super.dispose();
   }
 

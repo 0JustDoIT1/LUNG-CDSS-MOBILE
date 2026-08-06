@@ -20,7 +20,7 @@ class MedicalApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => SessionController()..restore()),
         ChangeNotifierProvider(create: (_) => AppSettingsController()..load()),
-        ChangeNotifierProvider(create: (_) => SecuritySettingsController()),
+        ChangeNotifierProvider(create: (_) => SecuritySettingsController()..load()),
       ],
       child: const _MedicalAppView(),
     );

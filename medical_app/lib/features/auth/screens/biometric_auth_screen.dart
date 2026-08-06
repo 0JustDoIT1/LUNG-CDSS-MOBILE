@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/security/security_settings_controller.dart';
 import '../../../core/theme/app_theme.dart';
 
-/// 생체인증 화면 — patient_app 보안설정과 동일한 목업.
-/// 실제 기기 생체인증(local_auth 등) 연동 없이 0.5초 뒤 무조건 성공 처리.
+/// 생체인증 화면 — local_auth로 실제 기기(또는 에뮬레이터) 지문/얼굴 인증을 수행.
 class BiometricAuthScreen extends StatefulWidget {
   const BiometricAuthScreen({super.key});
 
@@ -14,6 +14,7 @@ class BiometricAuthScreen extends StatefulWidget {
 }
 
 class _BiometricAuthScreenState extends State<BiometricAuthScreen> {
+  final LocalAuthentication _localAuth = LocalAuthentication();
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -25,12 +26,30 @@ class _BiometricAuthScreenState extends State<BiometricAuthScreen> {
       _errorMessage = null;
     });
 
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
+    try {
+      final didAuthenticate = await _localAuth.authenticate(
+        localizedReason: '앱 잠금 해제를 위해 인증해주세요.',
+        options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true),
+      );
+      if (!mounted) return;
 
-    context.read<SecuritySettingsController>().markUnlocked();
-    Navigator.of(context).pop();
-    // 성공하면 라우터 redirect가 자동으로 홈으로 넘겨줌.
+      if (didAuthenticate) {
+        context.read<SecuritySettingsController>().markUnlocked();
+        Navigator.of(context).pop();
+        // 성공하면 라우터 redirect가 자동으로 홈으로 넘겨줌.
+      } else {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = '인증에 실패했어요. 다시 시도해주세요.';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = '생체인증을 사용할 수 없어요. 기기에 지문/얼굴이 등록돼 있는지 확인해주세요.';
+      });
+    }
   }
 
   @override
@@ -99,12 +118,6 @@ class _BiometricAuthScreenState extends State<BiometricAuthScreen> {
                     onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.pin_outlined),
                     label: const Text('PIN 번호로 인증'),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    '현재 단계에서는 실제 기기 생체인증 대신 Mock 인증 결과를 사용해요.',
-                    style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6), fontSize: 11),
-                    textAlign: TextAlign.center,
                   ),
                 ],
               ),

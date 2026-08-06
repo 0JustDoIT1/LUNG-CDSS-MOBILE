@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/auth/session_controller.dart';
 import '../../../core/security/security_settings_controller.dart';
 import '../../../core/settings/app_settings_controller.dart';
+import '../../auth/screens/pin_lock_screen.dart';
+import '../../auth/screens/pin_setup_screen.dart';
 
 /// 앱 설정 — 화면표시(테마/화면항상켜짐/글자크기) + 알림 + 위젯 + 약관 및 정책
 /// 알림설정은 실제 서버(NotificationPreference API)와 동기화됨.
@@ -18,6 +21,11 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
   // 포인트 청록 컬러
   static const Color pointColor = Color(0xFF0D9488);
 
+  /// 알림 카테고리는 의사/간호사가 AppSettingsController를 공유하지만, 실제로 간호사에게
+  /// 오는 알림은 예약/채팅뿐 — 복약(환자에게만 감)·케이스검토(의사 전용)·증상위험도(현재 발송 자체가
+  /// 없는 카테고리)는 켜봐야 의미가 없어서 목록에서 뺀다.
+  static const _visibleCategories = {'예약', '채팅'};
+
   @override
   void initState() {
     super.initState();
@@ -27,6 +35,70 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
         context.read<AppSettingsController>().syncNotificationsFromServer(token);
       }
     });
+  }
+
+  List<String> _visibleNotificationKeys(AppSettingsController settings) =>
+      settings.notifications.keys.where(_visibleCategories.contains).toList();
+
+  Future<void> _onAppLockChanged(bool value) async {
+    final security = context.read<SecuritySettingsController>();
+    await security.setAppLockEnabled(value);
+    if (value && !security.hasPin && mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const PinSetupScreen()),
+      );
+    }
+  }
+
+  Future<void> _onBiometricChanged(bool value) async {
+    final security = context.read<SecuritySettingsController>();
+    if (!value) {
+      await security.setBiometricEnabled(false);
+      return;
+    }
+
+    final auth = LocalAuthentication();
+    final supported = await auth.isDeviceSupported();
+    if (!supported) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이 기기에서는 생체인증을 사용할 수 없어요.')),
+      );
+      return;
+    }
+
+    bool didAuthenticate;
+    try {
+      didAuthenticate = await auth.authenticate(
+        localizedReason: '생체인증을 사용하려면 인증해주세요.',
+        options: const AuthenticationOptions(biometricOnly: true),
+      );
+    } catch (_) {
+      didAuthenticate = false;
+    }
+    if (!mounted) return;
+    if (!didAuthenticate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('생체인증 등록/확인에 실패했어요.')),
+      );
+      return;
+    }
+    await security.setBiometricEnabled(true);
+  }
+
+  Future<void> _changePin() async {
+    final verified = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const PinLockScreen(mode: PinLockMode.verifyOnly)),
+    );
+    if (verified != true || !mounted) return;
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const PinSetupScreen()),
+    );
+    if (changed == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PIN이 변경됐어요')),
+      );
+    }
   }
 
   /// 알림 카테고리별 아이콘
@@ -139,12 +211,12 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
             ),
             child: Column(
               children: [
-                for (int i = 0; i < settings.notifications.keys.length; i++) ...[
+                for (int i = 0; i < _visibleNotificationKeys(settings).length; i++) ...[
                   if (i > 0) Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
                   Builder(
                     builder: (context) {
-                      final categoryKey = settings.notifications.keys.elementAt(i);
-                      final isChecked = settings.notifications.values.elementAt(i);
+                      final categoryKey = _visibleNotificationKeys(settings)[i];
+                      final isChecked = settings.notifications[categoryKey]!;
 
                       return SwitchListTile(
                         activeThumbColor: pointColor,
@@ -190,8 +262,21 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
                   title: const Text('앱 잠금', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                   subtitle: const Text('앱 실행 시 PIN 인증을 사용해요.'),
                   value: security.appLockEnabled,
-                  onChanged: (v) => security.setAppLockEnabled(v),
+                  onChanged: _onAppLockChanged,
                 ),
+                if (security.appLockEnabled) ...[
+                  Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                  ListTile(
+                    leading: _buildIconBox(context, Icons.password_rounded, iconBgColor: iconBgColor),
+                    title: const Text('PIN 변경', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    subtitle: Text(security.hasPin ? '현재 PIN을 확인하고 새로 설정해요.' : '아직 PIN을 설정하지 않았어요.'),
+                    trailing: Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
+                    onTap: security.hasPin
+                        ? _changePin
+                        : () => Navigator.of(context)
+                            .push(MaterialPageRoute(builder: (_) => const PinSetupScreen())),
+                  ),
+                ],
                 Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
                 SwitchListTile(
                   activeThumbColor: pointColor,
@@ -204,7 +289,7 @@ class _NurseAppSettingsScreenState extends State<NurseAppSettingsScreen> {
                   title: const Text('생체인증 사용', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                   subtitle: const Text('지문 또는 얼굴 인증으로 잠금을 해제해요.'),
                   value: security.biometricEnabled,
-                  onChanged: security.appLockEnabled ? (v) => security.setBiometricEnabled(v) : null,
+                  onChanged: security.appLockEnabled ? _onBiometricChanged : null,
                 ),
               ],
             ),

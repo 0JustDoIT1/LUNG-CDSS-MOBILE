@@ -7,6 +7,7 @@ import '../../../../core/api/cases_api.dart';
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/lifecycle/app_resume_notifier.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widget/home_widget_service.dart';
 import '../../../../main.dart';
 import '../../models/appointment.dart';
 import '../../models/review_case.dart';
@@ -58,6 +59,7 @@ class _DoctorHomeTabState extends State<DoctorHomeTab> {
       final cases = await fetchCases(token);
       if (!mounted) return;
       setState(() => _cases = cases);
+      _updateHomeWidget(cases);
     } on ApiException catch (_) {
       // 조용히 무시
     }
@@ -69,6 +71,13 @@ class _DoctorHomeTabState extends State<DoctorHomeTab> {
     } on ApiException catch (_) {
       // 조용히 무시
     }
+  }
+
+  /// 홈스크린 위젯(안드로이드)에 검토대기/긴급 건수 반영 — 실패해도 앱 사용엔 지장 없어야 함.
+  void _updateHomeWidget(List<ReviewCase> cases) {
+    final pending = cases.where((c) => c.status == CaseStatus.pending).toList();
+    final urgent = pending.where((c) => c.isUrgent).length;
+    updatePendingCasesWidget(pendingCount: pending.length, urgentCount: urgent);
   }
 
   Future<void> _load() async {
@@ -85,6 +94,7 @@ class _DoctorHomeTabState extends State<DoctorHomeTab> {
       final cases = await fetchCases(token);
       if (!mounted) return;
       setState(() => _cases = cases);
+      _updateHomeWidget(cases);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _casesErrorMessage = e.message);

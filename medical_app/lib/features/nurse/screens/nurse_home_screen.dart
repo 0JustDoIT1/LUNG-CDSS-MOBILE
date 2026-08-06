@@ -67,7 +67,9 @@ class _NurseHomeScreenState extends State<NurseHomeScreen> with WidgetsBindingOb
       if (!mounted) return;
       setState(() {
         _unreadChatCount = threads.fold(0, (sum, t) => sum + t.unreadCount);
-        _unreadNotificationCount = notifications.where((n) => !n.isRead).length;
+        // chat 알림은 알림함 목록에서 제외돼 있어서(채팅탭 뱃지로 따로 표시) 여기서도 빼야 개수가 맞음.
+        _unreadNotificationCount =
+            notifications.where((n) => !n.isRead && n.type != NotificationType.chat).length;
       });
     } on ApiException catch (_) {
       // 뱃지 갱신 실패는 조용히 무시
@@ -78,7 +80,7 @@ class _NurseHomeScreenState extends State<NurseHomeScreen> with WidgetsBindingOb
         const QueueTab(),
         const NursePatientsTab(),
         NurseHomeTab(onNavigateToTab: (i) => setState(() => _tabIndex = i)),
-        const NurseChatTab(),
+        NurseChatTab(onUnreadChanged: _refreshBadges),
         const NurseSettingsTab(),
       ];
 

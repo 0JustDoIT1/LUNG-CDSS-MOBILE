@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
 
@@ -42,6 +43,32 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- 홈스크린 위젯: 검토대기 건수 표시 (PendingCasesWidgetProvider.kt + HomeWidgetService) -->
+        <receiver
+            android:name=".PendingCasesWidgetProvider"
+            android:exported="false"
+            android:label="검토대기 (의사)">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/pending_cases_widget_info" />
+        </receiver>
+
+        <!-- 홈스크린 위젯: 예약요청 대기 건수 표시(간호사) (PendingAppointmentsWidgetProvider.kt) -->
+        <receiver
+            android:name=".PendingAppointmentsWidgetProvider"
+            android:exported="false"
+            android:label="예약요청 대기">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/pending_appointments_widget_info" />
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

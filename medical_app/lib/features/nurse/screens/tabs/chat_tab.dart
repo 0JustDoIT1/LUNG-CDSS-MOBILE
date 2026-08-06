@@ -13,7 +13,11 @@ import '../../../../main.dart';
 /// 채팅방 안 메시지 조회/전송도 실제 API+WS 연동됨.
 /// 목록은 포그라운드 푸시 수신 + 앱 재개(resume) 시 새로고침으로 최신 상태 유지.
 class NurseChatTab extends StatefulWidget {
-  const NurseChatTab({super.key});
+  /// 목록이 새로고침될 때마다 호출 — 하단 탭바의 안읽음 뱃지(부모 셸이 별도로 들고 있음)를
+  /// 같이 갱신시키기 위함. 안 그러면 채팅방 읽고 나와도 하단 뱃지가 바로 안 사라짐.
+  final VoidCallback? onUnreadChanged;
+
+  const NurseChatTab({super.key, this.onUnreadChanged});
 
   @override
   State<NurseChatTab> createState() => _NurseChatTabState();
@@ -60,6 +64,7 @@ class _NurseChatTabState extends State<NurseChatTab> {
         _threads = threads;
         _isLoading = false;
       });
+      widget.onUnreadChanged?.call();
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -77,6 +82,7 @@ class _NurseChatTabState extends State<NurseChatTab> {
       final threads = await api.fetchChatThreads(token);
       if (!mounted) return;
       setState(() => _threads = threads);
+      widget.onUnreadChanged?.call();
     } on ApiException catch (_) {
       // 조용히 무시
     }
