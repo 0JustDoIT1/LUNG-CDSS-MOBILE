@@ -18,34 +18,29 @@ class TodayHealthSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final int medicationPercent =
-        (summary.medicationProgress * 100).round();
+    final int medicationPercent = (summary.medicationProgress * 100).round();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '오늘의 건강',
-          style: AppTextStyles.headlineMedium,
-        ),
+        const Text('오늘의 건강', style: AppTextStyles.headlineMedium),
         const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppColors.border,
-            ),
+            border: Border.all(color: AppColors.border),
           ),
           child: Column(
             children: [
               _HealthItem(
                 icon: Icons.medication_outlined,
                 title: '오늘 복약',
-                description:
-                    '${summary.completedMedicationCount}'
-                    '/${summary.todayMedicationCount}회 완료',
+                description: summary.todayMedicationCount == 0
+                    ? '등록된 복약 일정이 없습니다. · 0/0회 완료'
+                    : '${summary.completedMedicationCount}'
+                          '/${summary.todayMedicationCount}회 완료',
                 trailing: '$medicationPercent%',
                 onTap: onMedicationTap,
               ),
@@ -55,8 +50,7 @@ class TodayHealthSummary extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: summary.medicationProgress,
                   minHeight: 8,
-                  backgroundColor:
-                      AppColors.primary.withValues(alpha: 0.12),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.12),
                   valueColor: const AlwaysStoppedAnimation<Color>(
                     AppColors.primary,
                   ),
@@ -64,10 +58,7 @@ class TodayHealthSummary extends StatelessWidget {
               ),
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
-                child: Divider(
-                  height: 1,
-                  color: AppColors.border,
-                ),
+                child: Divider(height: 1, color: AppColors.border),
               ),
               _HealthItem(
                 icon: Icons.monitor_heart_outlined,
@@ -75,9 +66,7 @@ class TodayHealthSummary extends StatelessWidget {
                 description: summary.hasSymptomRecordToday
                     ? '오늘의 증상을 기록했습니다.'
                     : '아직 오늘의 증상을 기록하지 않았습니다.',
-                trailing: summary.hasSymptomRecordToday
-                    ? '작성완료'
-                    : '미작성',
+                trailing: summary.hasSymptomRecordToday ? '작성완료' : '미작성',
                 trailingColor: summary.hasSymptomRecordToday
                     ? AppColors.primary
                     : AppColors.textSecondary,
@@ -124,10 +113,7 @@ class _HealthItem extends StatelessWidget {
                 color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(
-                icon,
-                color: AppColors.primary,
-              ),
+              child: Icon(icon, color: AppColors.primary),
             ),
             const SizedBox(width: 14),
             Expanded(

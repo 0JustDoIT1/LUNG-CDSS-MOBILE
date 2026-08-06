@@ -66,6 +66,12 @@ class IntakeFormNotifier extends AsyncNotifier<IntakeForm> {
             IntakeContent(status: status, questions: current.questions),
           );
       state = AsyncData(saved);
+      if (status == IntakeStatus.submitted && !saved.isCompleted) {
+        _lastError = StateError(
+          'The server did not confirm the submitted intake status.',
+        );
+        return false;
+      }
       return true;
     } catch (error) {
       _lastError = error;

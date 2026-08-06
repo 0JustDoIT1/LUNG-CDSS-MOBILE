@@ -61,24 +61,27 @@ class HomeSummary {
     String? nextAppointmentDepartment,
     String? nextAppointmentDoctor,
     DateTime? nextAppointmentDateTime,
+    bool replaceNextAppointment = false,
     int? unreadNotificationCount,
   }) {
     return HomeSummary(
       latestTestTitle: latestTestTitle ?? this.latestTestTitle,
       latestTestDate: latestTestDate ?? this.latestTestDate,
       latestTestStatus: latestTestStatus ?? this.latestTestStatus,
-      todayMedicationCount:
-          todayMedicationCount ?? this.todayMedicationCount,
+      todayMedicationCount: todayMedicationCount ?? this.todayMedicationCount,
       completedMedicationCount:
           completedMedicationCount ?? this.completedMedicationCount,
       hasSymptomRecordToday:
           hasSymptomRecordToday ?? this.hasSymptomRecordToday,
-      nextAppointmentDepartment:
-          nextAppointmentDepartment ?? this.nextAppointmentDepartment,
-      nextAppointmentDoctor:
-          nextAppointmentDoctor ?? this.nextAppointmentDoctor,
-      nextAppointmentDateTime:
-          nextAppointmentDateTime ?? this.nextAppointmentDateTime,
+      nextAppointmentDepartment: replaceNextAppointment
+          ? nextAppointmentDepartment
+          : nextAppointmentDepartment ?? this.nextAppointmentDepartment,
+      nextAppointmentDoctor: replaceNextAppointment
+          ? nextAppointmentDoctor
+          : nextAppointmentDoctor ?? this.nextAppointmentDoctor,
+      nextAppointmentDateTime: replaceNextAppointment
+          ? nextAppointmentDateTime
+          : nextAppointmentDateTime ?? this.nextAppointmentDateTime,
       unreadNotificationCount:
           unreadNotificationCount ?? this.unreadNotificationCount,
     );

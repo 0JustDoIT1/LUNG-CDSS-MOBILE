@@ -1,151 +1,79 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
-import '../../../home/presentation/providers/patient_provider.dart';
+import '../../../intake/presentation/providers/patient_qr_provider.dart';
+import '../../../intake/presentation/providers/intake_form_provider.dart';
 
-class PatientQrScreen extends ConsumerWidget {
-  const PatientQrScreen({
-    super.key,
-  });
+class PatientQrScreen extends ConsumerStatefulWidget {
+  const PatientQrScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final profileState = ref.watch(patientProfileProvider);
+  ConsumerState<PatientQrScreen> createState() => _PatientQrScreenState();
+}
+
+class _PatientQrScreenState extends ConsumerState<PatientQrScreen>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(patientQrProvider.notifier).recalculateRemainingTime();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(patientQrProvider);
+    final intakeState = ref.watch(intakeFormProvider);
+    final isIntakeSubmitted = intakeState.asData?.value.isCompleted == true;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('진료카드 QR'),
-      ),
+      appBar: AppBar(title: const Text('환자 QR')),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              Text(
-                '진료 접수 시 QR을 보여주세요',
-                textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineSmall
-                    ?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                '병원에서 환자 정보를 빠르게 확인할 수 있습니다.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(
-                      color: Colors.grey.shade700,
-                      height: 1.5,
-                    ),
-              ),
-              const SizedBox(height: 32),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Colors.grey.shade200,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '의료진에게 이 QR을 보여주세요.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: 0.05,
-                      ),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
                 ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 220,
-                      height: 220,
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.grey.shade300,
-                        ),
-                      ),
-                      child: const _MockQrCode(),
+                if (!isIntakeSubmitted) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const SizedBox(height: 24),
-                    profileState.when(
-                      loading: () => const SizedBox.square(
-                        dimension: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      error: (error, stackTrace) => Column(
-                        children: [
-                          const Text('프로필 정보를 불러오지 못했습니다.'),
-                          TextButton(
-                            onPressed: () =>
-                                ref.invalidate(patientProfileProvider),
-                            child: const Text('다시 시도'),
-                          ),
-                        ],
-                      ),
-                      data: (profile) => Column(
-                        children: [
-                          Text(
-                            profile.name,
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '환자번호 ${profile.patientNumber}',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: Colors.grey.shade700),
-                          ),
-                        ],
-                      ),
+                    child: const Text(
+                      '현재 문진표가 제출되지 않았습니다. 문진표를 먼저 제출해주세요.',
+                      textAlign: TextAlign.center,
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primaryContainer
-                      .withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline_rounded,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .primary,
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'QR에는 환자 식별을 위한 임시 정보만 포함되며, 일정 시간이 지나면 새로 갱신됩니다.',
-                        style: TextStyle(
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+                  ),
+                ],
+                const SizedBox(height: 32),
+                _QrContent(state: state),
+              ],
+            ),
           ),
         ),
       ),
@@ -153,69 +81,83 @@ class PatientQrScreen extends ConsumerWidget {
   }
 }
 
-class _MockQrCode extends StatelessWidget {
-  const _MockQrCode();
+class _QrContent extends ConsumerWidget {
+  const _QrContent({required this.state});
+
+  final PatientQrState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    switch (state.status) {
+      case PatientQrStatus.loading:
+        return const CircularProgressIndicator();
+      case PatientQrStatus.error:
+        return _MessageWithRetry(
+          message: patientQrErrorMessage(state.error),
+          onRetry: ref.read(patientQrProvider.notifier).issue,
+        );
+      case PatientQrStatus.expired:
+        return _MessageWithRetry(
+          message: 'QR이 만료되었습니다.',
+          onRetry: ref.read(patientQrProvider.notifier).issue,
+        );
+      case PatientQrStatus.data:
+        final value = state.value!;
+        return Column(
+          children: [
+            Semantics(
+              label: '환자 임시 QR 코드',
+              child: Container(
+                width: 240,
+                height: 240,
+                padding: const EdgeInsets.all(16),
+                color: Colors.white,
+                child: PatientQrCode(data: value.token),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text('${_formatRemaining(state.remainingSeconds)} 후 만료'),
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: ref.read(patientQrProvider.notifier).issue,
+              child: const Text('새 QR 발급'),
+            ),
+          ],
+        );
+    }
+  }
+
+  static String _formatRemaining(int totalSeconds) {
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:'
+        '${seconds.toString().padLeft(2, '0')}';
+  }
+}
+
+class PatientQrCode extends StatelessWidget {
+  const PatientQrCode({required this.data, super.key});
+
+  final String data;
+
+  @override
+  Widget build(BuildContext context) => QrImageView(data: data);
+}
+
+class _MessageWithRetry extends StatelessWidget {
+  const _MessageWithRetry({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: 21 * 21,
-      gridDelegate:
-          const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 21,
-      ),
-      itemBuilder: (context, index) {
-        final row = index ~/ 21;
-        final column = index % 21;
-
-        final isFinderPattern =
-            _isFinderPattern(row, column);
-
-        final isFilled = isFinderPattern ||
-            ((row * 7 + column * 3 + row * column) % 5 == 0);
-
-        return Container(
-          color: isFilled
-              ? Colors.black
-              : Colors.white,
-        );
-      },
+    return Column(
+      children: [
+        Text(message, textAlign: TextAlign.center),
+        const SizedBox(height: 20),
+        FilledButton(onPressed: onRetry, child: const Text('새 QR 발급')),
+      ],
     );
-  }
-
-  bool _isFinderPattern(int row, int column) {
-    return _inPattern(row, column, 0, 0) ||
-        _inPattern(row, column, 0, 14) ||
-        _inPattern(row, column, 14, 0);
-  }
-
-  bool _inPattern(
-    int row,
-    int column,
-    int startRow,
-    int startColumn,
-  ) {
-    final localRow = row - startRow;
-    final localColumn = column - startColumn;
-
-    if (localRow < 0 ||
-        localRow > 6 ||
-        localColumn < 0 ||
-        localColumn > 6) {
-      return false;
-    }
-
-    final isOuterBorder = localRow == 0 ||
-        localRow == 6 ||
-        localColumn == 0 ||
-        localColumn == 6;
-
-    final isCenter = localRow >= 2 &&
-        localRow <= 4 &&
-        localColumn >= 2 &&
-        localColumn <= 4;
-
-    return isOuterBorder || isCenter;
   }
 }

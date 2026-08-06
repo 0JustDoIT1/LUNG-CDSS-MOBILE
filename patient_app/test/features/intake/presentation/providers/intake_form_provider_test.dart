@@ -48,6 +48,24 @@ void main() {
     expect(repository.savedContents.single.status, IntakeStatus.submitted);
   });
 
+  test(
+    'does not complete when the server returns draft after submission',
+    () async {
+      final repository = _FakeRepository(returnDraftOnSubmit: true);
+      final container = _container(repository);
+      addTearDown(container.dispose);
+      await container.read(intakeFormProvider.future);
+      final notifier = container.read(intakeFormProvider.notifier);
+      notifier.updateAnswer('smoking', '?꾩옱 ?≪뿰');
+
+      expect(await notifier.submitForm(), isFalse);
+      expect(
+        container.read(intakeFormProvider).value?.content.status,
+        IntakeStatus.draft,
+      );
+    },
+  );
+
   test('keeps local input when saving fails', () async {
     final repository = _FakeRepository(shouldFail: true);
     final container = _container(repository);
@@ -91,11 +109,15 @@ ProviderContainer _container(IntakeRepository repository) {
 }
 
 class _FakeRepository extends IntakeRepository {
-  _FakeRepository({this.shouldFail = false, this.saveBlocker})
-    : super(IntakeApi(ApiClient(dio: Dio())));
+  _FakeRepository({
+    this.shouldFail = false,
+    this.saveBlocker,
+    this.returnDraftOnSubmit = false,
+  }) : super(IntakeApi(ApiClient(dio: Dio())));
 
   final bool shouldFail;
   final Completer<void>? saveBlocker;
+  final bool returnDraftOnSubmit;
   final List<IntakeContent> savedContents = <IntakeContent>[];
 
   @override
@@ -108,8 +130,14 @@ class _FakeRepository extends IntakeRepository {
     await saveBlocker?.future;
     return IntakeForm(
       id: _form.id,
-      content: content,
-      submittedAt: content.status == IntakeStatus.submitted
+      content: returnDraftOnSubmit
+          ? IntakeContent(
+              status: IntakeStatus.draft,
+              questions: content.questions,
+            )
+          : content,
+      submittedAt:
+          content.status == IntakeStatus.submitted && !returnDraftOnSubmit
           ? DateTime(2026, 8, 5)
           : null,
       updatedAt: DateTime(2026, 8, 5),

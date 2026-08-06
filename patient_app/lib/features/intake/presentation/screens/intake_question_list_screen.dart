@@ -30,6 +30,24 @@ class IntakeQuestionListScreen extends ConsumerWidget {
           );
         },
         data: (form) {
+          if (!form.isCompleted) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('제출 완료된 문진표가 없습니다.'),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: onEdit,
+                      child: const Text('문진 작성하기'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
           if (form.questions.isEmpty) {
             return const Center(child: Text('등록된 문진 문항이 없습니다.'));
           }

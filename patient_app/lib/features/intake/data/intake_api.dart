@@ -1,4 +1,6 @@
 import '../../../core/network/api_client.dart';
+import 'package:flutter/foundation.dart';
+
 import 'models/intake_form.dart';
 
 class IntakeApi {
@@ -16,6 +18,7 @@ class IntakeApi {
   }
 
   Future<Map<String, dynamic>> saveMyIntake(IntakeContent content) async {
+    debugPrint('[Intake] PUT /api/intake/mine/ status=${content.status.name}');
     final response = await _apiClient.put<dynamic>(
       '/api/intake/mine/',
       data: <String, dynamic>{'content': content.toJson()},
@@ -24,6 +27,14 @@ class IntakeApi {
     if (data is! Map<String, dynamic>) {
       throw const FormatException('문진 저장 응답은 객체여야 합니다.');
     }
+    final responseContent = data['content'];
+    final responseStatus = responseContent is Map<String, dynamic>
+        ? responseContent['status']
+        : null;
+    debugPrint(
+      '[Intake] PUT response statusCode=${response.statusCode} '
+      'intakeStatus=$responseStatus',
+    );
     return data;
   }
 }

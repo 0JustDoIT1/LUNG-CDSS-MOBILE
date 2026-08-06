@@ -79,7 +79,9 @@ class _QrScanScreenState extends State<QrScanScreen> {
   }
 
   void _resumeWithMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
     setState(() => _isProcessing = false);
     _controller.start();
   }
@@ -105,7 +107,8 @@ class _QrScanScreenState extends State<QrScanScreen> {
           MobileScanner(
             controller: _controller,
             onDetect: _onDetect,
-            errorBuilder: (context, error, child) => _CameraErrorView(error: error),
+            errorBuilder: (context, error, child) =>
+                _CameraErrorView(error: error),
           ),
           IgnorePointer(
             child: Center(
@@ -147,7 +150,8 @@ class _CameraErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPermissionIssue = error.errorCode == MobileScannerErrorCode.permissionDenied;
+    final isPermissionIssue =
+        error.errorCode == MobileScannerErrorCode.permissionDenied;
 
     return ColoredBox(
       color: Colors.black,
@@ -157,7 +161,11 @@ class _CameraErrorView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.no_photography_outlined, color: Colors.white70, size: 48),
+              const Icon(
+                Icons.no_photography_outlined,
+                color: Colors.white70,
+                size: 48,
+              ),
               const SizedBox(height: 16),
               Text(
                 isPermissionIssue
@@ -178,7 +186,10 @@ class _QrResultSheet extends StatefulWidget {
   final QrPatientSummary summary;
   final bool showCheckInAction;
 
-  const _QrResultSheet({required this.summary, required this.showCheckInAction});
+  const _QrResultSheet({
+    required this.summary,
+    required this.showCheckInAction,
+  });
 
   @override
   State<_QrResultSheet> createState() => _QrResultSheetState();
@@ -199,7 +210,9 @@ class _QrResultSheetState extends State<_QrResultSheet> {
 
     try {
       final todayVisits = await fetchTodayVisits(accessToken);
-      final match = todayVisits.where((a) => a.patientName == widget.summary.name).toList();
+      final match = todayVisits
+          .where((a) => a.patientName == widget.summary.name)
+          .toList();
       if (match.isEmpty) {
         if (!mounted) return;
         setState(() {
@@ -246,8 +259,13 @@ class _QrResultSheetState extends State<_QrResultSheet> {
                   radius: 22,
                   backgroundColor: AppTheme.seed.withValues(alpha: 0.12),
                   child: Text(
-                    summary.name.isNotEmpty ? summary.name.substring(0, 1) : '?',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.gradientEnd),
+                    summary.name.isNotEmpty
+                        ? summary.name.substring(0, 1)
+                        : '?',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.gradientEnd,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -255,14 +273,25 @@ class _QrResultSheetState extends State<_QrResultSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(summary.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      if (summary.patientNumber != null || summary.birthDate != null)
+                      Text(
+                        summary.name,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (summary.patientNumber != null ||
+                          summary.birthDate != null)
                         Text(
                           [
-                            if (summary.patientNumber != null) '환자번호 ${summary.patientNumber}',
+                            if (summary.patientNumber != null)
+                              '환자번호 ${summary.patientNumber}',
                             if (summary.birthDate != null) summary.birthDate!,
                           ].join(' · '),
-                          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                     ],
                   ),
@@ -270,10 +299,29 @@ class _QrResultSheetState extends State<_QrResultSheet> {
               ],
             ),
             const SizedBox(height: 20),
-            Text('문진표 요약', style: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
+            Text(
+              '문진표 요약',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
+              ),
+            ),
             const SizedBox(height: 8),
-            if (summary.intakeAnswers.isEmpty)
-              Text('제출된 문진표가 없어요', style: TextStyle(color: colorScheme.onSurfaceVariant))
+            if (summary.intakeStatus == null)
+              Text(
+                '문진표를 작성하지 않은 환자입니다.',
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
+              )
+            else if (summary.intakeStatus != 'submitted')
+              Text(
+                '문진표를 아직 제출하지 않은 환자입니다.',
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
+              )
+            else if (summary.intakeAnswers.isEmpty)
+              Text(
+                '제출된 문진 답변이 없습니다.',
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
+              )
             else
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 240),
@@ -284,7 +332,10 @@ class _QrResultSheetState extends State<_QrResultSheet> {
                       for (final answer in summary.intakeAnswers) ...[
                         Text(
                           answer.questionText,
-                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(answer.answerText),
@@ -297,19 +348,27 @@ class _QrResultSheetState extends State<_QrResultSheet> {
             if (widget.showCheckInAction) ...[
               const SizedBox(height: 20),
               if (_checkInMessage != null) ...[
-                Text(_checkInMessage!, style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                Text(
+                  _checkInMessage!,
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
                 const SizedBox(height: 8),
               ],
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: AppTheme.gradientEnd),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.gradientEnd,
+                  ),
                   onPressed: _isCheckingIn ? null : _checkIn,
                   child: _isCheckingIn
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Text('방문처리'),
                 ),

@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loading_view.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../appointment/presentation/providers/appointment_provider.dart';
+import '../../../results/presentation/providers/test_result_provider.dart';
+import '../../../symptom/presentation/providers/symptom_medication_provider.dart';
 import '../providers/home_summary_provider.dart';
 import '../providers/patient_provider.dart';
 import '../widgets/home_header.dart';
@@ -45,11 +48,17 @@ class HomeScreen extends ConsumerWidget {
               return RefreshIndicator(
                 onRefresh: () async {
                   ref.invalidate(patientProfileProvider);
-                  ref.invalidate(homeSummaryProvider);
+                  ref.invalidate(todayMedicationLogsProvider);
+                  ref.invalidate(symptomRecordsProvider);
+                  ref.invalidate(testResultsProvider);
+                  ref.invalidate(myAppointmentsProvider);
 
                   await Future.wait([
                     ref.read(patientProfileProvider.future),
-                    ref.read(homeSummaryProvider.future),
+                    ref.read(todayMedicationLogsProvider.future),
+                    ref.read(symptomRecordsProvider.future),
+                    ref.read(testResultsProvider.future),
+                    ref.read(myAppointmentsProvider.future),
                   ]);
                 },
                 child: ListView(
@@ -72,7 +81,7 @@ class HomeScreen extends ConsumerWidget {
                     LatestTestCard(summary: summary),
                     const SizedBox(height: 32),
 
-                    MedicationAppointmentCards(summary: summary),
+                    HomeAppointmentCard(summary: summary),
                     const SizedBox(height: 32),
 
                     const HomeQuickMenu(),
